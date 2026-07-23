@@ -64,7 +64,7 @@ object JsonImporter {
                 origine = b.origine,
                 creee = creee,
                 echeance = echeance,
-                tiers = b.tiers,
+                tiers = if (b.tiers) "Oui" else null,
                 preuveAttendue = b.preuveAttendue,
                 blocage = b.blocage,
                 impact = b.impact,
@@ -76,8 +76,10 @@ object JsonImporter {
                 mouvements += Mouvement(
                     boucleId = b.id,
                     date = parseDate(m.date, "date (mouvement)", b.id),
-                    type = m.type,
-                    contenu = m.contenu
+                    // Le JSON réel ne porte qu'une note libre : on la range en
+                    // mouvement de type "declaration" (l'entité garde type/contenu).
+                    type = "declaration",
+                    contenu = m.note
                 )
             }
         }

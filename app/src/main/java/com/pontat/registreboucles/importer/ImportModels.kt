@@ -20,7 +20,7 @@ data class BoucleJson(
     val origine: String,
     val creee: String,
     val echeance: String? = null,
-    val tiers: String? = null,
+    val tiers: Boolean = false,
     val preuveAttendue: String,
     val blocage: String? = null,
     val impact: String,
@@ -32,6 +32,5 @@ data class BoucleJson(
 @Serializable
 data class MouvementJson(
     val date: String,
-    val type: String,
-    val contenu: String
+    val note: String
 )
