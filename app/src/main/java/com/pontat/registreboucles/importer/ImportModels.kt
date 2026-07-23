@@ -1,0 +1,37 @@
+package com.pontat.registreboucles.importer
+
+import kotlinx.serialization.Serializable
+
+/**
+ * DTOs de l'export JSON. Les dates sont des chaînes ISO-8601 ; la conversion
+ * en epoch millis se fait dans [JsonImporter]. Tout champ texte reste libre
+ * (pas d'enum) pour ne pas casser l'import au premier écart de vocabulaire.
+ */
+@Serializable
+data class ExportRacine(
+    val boucles: List<BoucleJson> = emptyList()
+)
+
+@Serializable
+data class BoucleJson(
+    val id: String,
+    val type: String,
+    val titre: String,
+    val origine: String,
+    val creee: String,
+    val echeance: String? = null,
+    val tiers: String? = null,
+    val preuveAttendue: String,
+    val blocage: String? = null,
+    val impact: String,
+    val defaut: String? = null,
+    val statut: String,
+    val mouvements: List<MouvementJson> = emptyList()
+)
+
+@Serializable
+data class MouvementJson(
+    val date: String,
+    val type: String,
+    val contenu: String
+)

@@ -1,0 +1,8 @@
+<resources>
+    <!-- Thème de base (splash/fenêtre). Le rendu réel est piloté par Compose. -->
+    <style name="Theme.RegistreBoucles" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fill_cream</item>
+        <item name="android:statusBarColor">@color/brown</item>
+        <item name="android:navigationBarColor">@color/fill_cream</item>
+    </style>
+</resources>

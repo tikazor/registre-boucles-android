@@ -1,0 +1,8 @@
+<resources>
+    <!-- Charte 02 -->
+    <color name="brown">#8A5A44</color>
+    <color name="sage">#6B8F71</color>
+    <color name="border_beige">#EADFCF</color>
+    <color name="fill_cream">#F3ECE3</color>
+    <color name="ic_launcher_background">#F3ECE3</color>
+</resources>
