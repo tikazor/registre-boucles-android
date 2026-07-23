@@ -14,18 +14,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -37,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +84,23 @@ fun ListeScreen(
     val boucles by vm.boucles.collectAsStateWithLifecycle()
     var filtre by remember { mutableStateOf(FiltreStatut.TOUTES) }
 
+    val context = LocalContext.current
+    val importEnAttente by vm.importEnAttente.collectAsStateWithLifecycle()
+    val erreurImport by vm.erreurImport.collectAsStateWithLifecycle()
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val contenu = try {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            } catch (e: Exception) {
+                null
+            }
+            vm.preparerImport(contenu ?: "")
+        }
+    }
+
     // Résumé calculé en mémoire depuis les données déjà chargées (pas de requête Room).
     val resume = remember(boucles) {
         val ouvertes = boucles.filter { estOuverte(it) }
@@ -112,9 +136,15 @@ fun ListeScreen(
                         }
                     )
                 },
+                actions = {
+                    IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+                        Icon(Icons.Filled.FileDownload, contentDescription = "Importer un JSON")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
@@ -155,6 +185,44 @@ fun ListeScreen(
                 }
             }
         }
+    }
+
+    // Ré-import sur base déjà peuplée : choix Ajouter / Écraser avant écriture Room.
+    val enAttente = importEnAttente
+    val err = erreurImport
+    if (enAttente != null) {
+        AlertDialog(
+            onDismissRequest = { vm.annulerImport() },
+            title = { Text("Importer ${enAttente.boucles.size} boucle(s)") },
+            text = {
+                Text(
+                    "La base contient déjà des données.\n\n" +
+                        "• Ajouter : n'insère que les boucles absentes. Tes boucles " +
+                        "actuelles, clôtures et mouvements ajoutés dans l'app sont conservés.\n\n" +
+                        "• Écraser : vide tout (boucles + mouvements) et réimporte le fichier tel quel."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.confirmerAjout() }) { Text("Ajouter") }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { vm.confirmerEcrasement() }) {
+                        Text("Écraser", color = Color(0xFFB85042))
+                    }
+                    TextButton(onClick = { vm.annulerImport() }) { Text("Annuler") }
+                }
+            }
+        )
+    } else if (err != null) {
+        AlertDialog(
+            onDismissRequest = { vm.effacerErreurImport() },
+            title = { Text("Import impossible") },
+            text = { Text(err) },
+            confirmButton = {
+                TextButton(onClick = { vm.effacerErreurImport() }) { Text("OK") }
+            }
+        )
     }
 }
 

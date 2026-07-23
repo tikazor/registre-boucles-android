@@ -54,6 +54,12 @@ interface BoucleDao {
     @Delete
     suspend fun supprimer(boucle: Boucle)
 
+    @Query("DELETE FROM boucles")
+    suspend fun supprimerToutesBoucles()
+
+    @Query("DELETE FROM mouvements")
+    suspend fun supprimerTousMouvements()
+
     // --- Mouvements ---
 
     @Query("SELECT * FROM mouvements WHERE boucleId = :boucleId ORDER BY date DESC")

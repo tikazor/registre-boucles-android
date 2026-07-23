@@ -57,8 +57,29 @@ class BoucleRepository(
         dao.insererMouvement(mouvement)
     }
 
-    /** Import initial : insère boucles + mouvements en un lot. */
-    suspend fun importer(boucles: List<Boucle>, mouvements: List<Mouvement>) {
+    /**
+     * "Ajouter" : n'insère que les boucles dont l'id est absent de la base,
+     * avec leurs mouvements. Les boucles déjà présentes (et leurs mouvements /
+     * clôtures faits dans l'app) ne sont PAS touchées. Renvoie le nombre ajouté.
+     */
+    suspend fun importerAjouter(boucles: List<Boucle>, mouvements: List<Mouvement>): Int {
+        val existants = dao.tousLesIds().toSet()
+        val nouvelles = boucles.filter { it.id !in existants }
+        val nouveauxIds = nouvelles.map { it.id }.toSet()
+        val nouveauxMouvements = mouvements.filter { it.boucleId in nouveauxIds }
+        dao.upsertToutes(nouvelles)
+        dao.insererMouvements(nouveauxMouvements)
+        rafraichirWidget()
+        return nouvelles.size
+    }
+
+    /**
+     * "Écraser" (aussi utilisé pour l'import initial d'une base vide) :
+     * vide boucles + mouvements puis réinsère le JSON tel quel.
+     */
+    suspend fun importerEcraser(boucles: List<Boucle>, mouvements: List<Mouvement>) {
+        dao.supprimerTousMouvements()
+        dao.supprimerToutesBoucles()
         dao.upsertToutes(boucles)
         dao.insererMouvements(mouvements)
         rafraichirWidget()

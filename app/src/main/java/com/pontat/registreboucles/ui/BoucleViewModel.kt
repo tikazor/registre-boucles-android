@@ -7,6 +7,7 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.importer.ImportException
+import com.pontat.registreboucles.importer.ImportResult
 import com.pontat.registreboucles.importer.JsonImporter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,11 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     private val _erreurImport = MutableStateFlow<String?>(null)
     val erreurImport: StateFlow<String?> = _erreurImport.asStateFlow()
+
+    /** Non-null quand un import est parsé alors que la base contient déjà des données :
+     *  l'UI présente alors le choix Ajouter / Écraser. */
+    private val _importEnAttente = MutableStateFlow<ImportResult?>(null)
+    val importEnAttente: StateFlow<ImportResult?> = _importEnAttente.asStateFlow()
 
     val boucles: StateFlow<List<Boucle>> = repository.observerToutes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -87,23 +93,53 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         viewModelScope.launch { repository.cloturer(id) }
     }
 
-    /** Import depuis une chaîne JSON. Renvoie le succès via [onResultat]. */
-    fun importer(contenu: String, onResultat: (Boolean) -> Unit) {
+    /**
+     * Parse le JSON puis décide :
+     * - base vide  -> insertion directe (aucun choix à faire) ;
+     * - base pleine -> expose le résultat dans [importEnAttente] pour que l'UI
+     *   propose Ajouter / Écraser avant toute écriture Room.
+     */
+    fun preparerImport(contenu: String) {
         viewModelScope.launch {
-            try {
-                val res = JsonImporter.parse(contenu)
-                repository.importer(res.boucles, res.mouvements)
-                _erreurImport.value = null
-                _baseVide.value = false
-                onResultat(true)
+            val res = try {
+                JsonImporter.parse(contenu)
             } catch (e: ImportException) {
                 _erreurImport.value = e.message
-                onResultat(false)
+                return@launch
             } catch (e: Exception) {
                 _erreurImport.value = "Erreur inattendue à l'import : ${e.message}"
-                onResultat(false)
+                return@launch
+            }
+            _erreurImport.value = null
+            if (repository.estVide()) {
+                repository.importerEcraser(res.boucles, res.mouvements)
+                _baseVide.value = false
+            } else {
+                _importEnAttente.value = res
             }
         }
+    }
+
+    /** "Ajouter" : n'insère que les id absents, sans toucher aux boucles existantes. */
+    fun confirmerAjout() {
+        val res = _importEnAttente.value ?: return
+        viewModelScope.launch {
+            repository.importerAjouter(res.boucles, res.mouvements)
+            _importEnAttente.value = null
+        }
+    }
+
+    /** "Écraser" : vide boucles + mouvements puis réimporte le JSON tel quel. */
+    fun confirmerEcrasement() {
+        val res = _importEnAttente.value ?: return
+        viewModelScope.launch {
+            repository.importerEcraser(res.boucles, res.mouvements)
+            _importEnAttente.value = null
+        }
+    }
+
+    fun annulerImport() {
+        _importEnAttente.value = null
     }
 
     fun effacerErreurImport() {

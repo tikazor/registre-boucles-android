@@ -38,11 +38,9 @@ fun ImportScreen(vm: BoucleViewModel) {
             } catch (e: Exception) {
                 null
             }
-            if (contenu == null) {
-                vm.importer("", onResultat = {}) // déclenche un message d'erreur « fichier vide »
-            } else {
-                vm.importer(contenu, onResultat = {})
-            }
+            // Base vide au 1er lancement : preparerImport insère directement,
+            // sans proposer de choix (rien à préserver).
+            vm.preparerImport(contenu ?: "")
         }
     }
 
