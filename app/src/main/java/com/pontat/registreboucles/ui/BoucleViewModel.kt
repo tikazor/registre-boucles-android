@@ -1,5 +1,6 @@
 package com.pontat.registreboucles.ui
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -140,6 +141,11 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     fun annulerImport() {
         _importEnAttente.value = null
+    }
+
+    /** Exporte l'état courant vers l'URI choisi (ACTION_CREATE_DOCUMENT). */
+    fun exporter(uri: Uri, onFini: (Boolean) -> Unit) {
+        viewModelScope.launch { onFini(repository.exporterVers(uri)) }
     }
 
     fun effacerErreurImport() {

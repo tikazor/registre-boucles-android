@@ -1,7 +1,9 @@
 package com.pontat.registreboucles.data
 
 import android.content.Context
+import android.net.Uri
 import androidx.glance.appwidget.updateAll
+import com.pontat.registreboucles.importer.JsonExporter
 import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
 
@@ -83,6 +85,21 @@ class BoucleRepository(
         dao.upsertToutes(boucles)
         dao.insererMouvements(mouvements)
         rafraichirWidget()
+    }
+
+    /**
+     * Sérialise l'état courant (boucles + mouvements) au schéma d'import et
+     * l'écrit dans l'URI fourni par ACTION_CREATE_DOCUMENT. Renvoie le succès.
+     */
+    suspend fun exporterVers(uri: Uri): Boolean = try {
+        val contenu = JsonExporter.serialiser(dao.toutesLesBoucles(), dao.tousLesMouvements())
+        val ok = appContext.contentResolver.openOutputStream(uri)?.use { out ->
+            out.write(contenu.toByteArray(Charsets.UTF_8))
+            true
+        } ?: false
+        ok
+    } catch (e: Exception) {
+        false
     }
 
     /** Statistiques pour le widget. */

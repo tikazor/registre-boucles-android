@@ -28,6 +28,9 @@ interface BoucleDao {
     @Query("SELECT id FROM boucles")
     suspend fun tousLesIds(): List<String>
 
+    @Query("SELECT * FROM boucles")
+    suspend fun toutesLesBoucles(): List<Boucle>
+
     @Query("SELECT COUNT(*) FROM boucles")
     suspend fun compter(): Int
 
@@ -64,6 +67,9 @@ interface BoucleDao {
 
     @Query("SELECT * FROM mouvements WHERE boucleId = :boucleId ORDER BY date DESC")
     fun observerMouvements(boucleId: String): Flow<List<Mouvement>>
+
+    @Query("SELECT * FROM mouvements")
+    suspend fun tousLesMouvements(): List<Mouvement>
 
     @Insert
     suspend fun insererMouvement(mouvement: Mouvement)

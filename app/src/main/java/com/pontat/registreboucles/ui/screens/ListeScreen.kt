@@ -18,10 +18,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -47,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.couleurStatut
@@ -56,6 +59,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 // Filtre local (aucun paramètre Room). "Ouverte" = statut != "fermee".
@@ -101,6 +105,22 @@ fun ListeScreen(
         }
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            vm.exporter(uri) { ok ->
+                Toast.makeText(
+                    context,
+                    if (ok) "Export terminé" else "Échec de l'export",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    var menuOuvert by remember { mutableStateOf(false) }
+
     // Résumé calculé en mémoire depuis les données déjà chargées (pas de requête Room).
     val resume = remember(boucles) {
         val ouvertes = boucles.filter { estOuverte(it) }
@@ -137,8 +157,28 @@ fun ListeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
-                        Icon(Icons.Filled.FileDownload, contentDescription = "Importer un JSON")
+                    IconButton(onClick = { menuOuvert = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions")
+                    }
+                    DropdownMenu(
+                        expanded = menuOuvert,
+                        onDismissRequest = { menuOuvert = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Importer un JSON") },
+                            onClick = {
+                                menuOuvert = false
+                                importLauncher.launch(arrayOf("application/json"))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Exporter (JSON)") },
+                            onClick = {
+                                menuOuvert = false
+                                val jour = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                                exportLauncher.launch("boucles-export-$jour.json")
+                            }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
