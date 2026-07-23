@@ -18,7 +18,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Filtre par statut de l'écran Liste. "Ouverte" = statut != "fermee". */
+enum class FiltreStatut(val libelle: String) {
+    TOUTES("Toutes"),
+    OUVERTES("Ouvertes"),
+    FERMEES("Fermées")
+}
+
 class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
+
+    // Filtres de l'écran Liste — hébergés ici pour persister à travers la
+    // navigation (retour depuis Détail / Création).
+    private val _recherche = MutableStateFlow("")
+    val recherche: StateFlow<String> = _recherche.asStateFlow()
+
+    private val _filtreStatut = MutableStateFlow(FiltreStatut.TOUTES)
+    val filtreStatut: StateFlow<FiltreStatut> = _filtreStatut.asStateFlow()
+
+    fun setRecherche(q: String) {
+        _recherche.value = q
+    }
+
+    fun setFiltreStatut(f: FiltreStatut) {
+        _filtreStatut.value = f
+    }
 
     /** null = inconnu (chargement), true = base vide (écran import), false = données présentes. */
     private val _baseVide = MutableStateFlow<Boolean?>(null)

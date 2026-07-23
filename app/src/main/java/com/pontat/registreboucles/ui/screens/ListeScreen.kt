@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -30,6 +31,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.widget.Toast
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.ui.BoucleViewModel
+import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
 import com.pontat.registreboucles.ui.formaterDate
 import com.pontat.registreboucles.ui.libelleStatut
@@ -62,14 +65,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-// Filtre local (aucun paramètre Room). "Ouverte" = statut != "fermee".
-private enum class FiltreStatut(val libelle: String) {
-    TOUTES("Toutes"),
-    OUVERTES("Ouvertes"),
-    FERMEES("Fermées")
-}
-
 private fun estOuverte(b: Boucle): Boolean = b.statut != "fermee"
+
+/** Recherche libre insensible à la casse sur les champs texte de la boucle. */
+private fun correspond(b: Boucle, requete: String): Boolean {
+    val q = requete.trim().lowercase()
+    if (q.isEmpty()) return true
+    return listOfNotNull(
+        b.id, b.titre, b.type, b.origine, b.preuveAttendue,
+        b.impact, b.blocage, b.defaut, b.tiers, b.statut
+    ).any { it.lowercase().contains(q) }
+}
 
 /** Jours (calendaires, fuseau local) entre aujourd'hui et l'échéance. Négatif = en retard. */
 private fun joursRestants(echeanceMillis: Long): Long {
@@ -86,7 +92,9 @@ fun ListeScreen(
     onOuvrirDebug: () -> Unit
 ) {
     val boucles by vm.boucles.collectAsStateWithLifecycle()
-    var filtre by remember { mutableStateOf(FiltreStatut.TOUTES) }
+    // Filtres hébergés dans le ViewModel : persistent aux aller-retours de navigation.
+    val filtre by vm.filtreStatut.collectAsStateWithLifecycle()
+    val recherche by vm.recherche.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val importEnAttente by vm.importEnAttente.collectAsStateWithLifecycle()
@@ -131,13 +139,17 @@ fun ListeScreen(
         )
     }
 
-    // Liste filtrée localement (déjà triée par échéance côté DAO).
-    val liste = remember(boucles, filtre) {
-        when (filtre) {
-            FiltreStatut.TOUTES -> boucles
-            FiltreStatut.OUVERTES -> boucles.filter { estOuverte(it) }
-            FiltreStatut.FERMEES -> boucles.filter { !estOuverte(it) }
-        }
+    // Liste filtrée localement (statut + recherche). Déjà triée par échéance côté DAO.
+    val liste = remember(boucles, filtre, recherche) {
+        boucles
+            .filter {
+                when (filtre) {
+                    FiltreStatut.TOUTES -> true
+                    FiltreStatut.OUVERTES -> estOuverte(it)
+                    FiltreStatut.FERMEES -> !estOuverte(it)
+                }
+            }
+            .filter { correspond(it, recherche) }
     }
 
     Scaffold(
@@ -204,12 +216,18 @@ fun ListeScreen(
                 .padding(padding)
         ) {
             BandeauResume(resume)
-            ChipsFiltre(filtre = filtre, onChange = { filtre = it })
+            ChipsFiltre(filtre = filtre, onChange = { vm.setFiltreStatut(it) })
+            ChampRecherche(
+                valeur = recherche,
+                onChange = { vm.setRecherche(it) },
+                onEffacer = { vm.setRecherche("") }
+            )
 
             if (liste.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "Aucune boucle dans ce filtre.",
+                        if (recherche.isBlank()) "Aucune boucle dans ce filtre."
+                        else "Aucun résultat pour « ${recherche.trim()} ».",
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -326,6 +344,30 @@ private fun ChipsFiltre(filtre: FiltreStatut, onChange: (FiltreStatut) -> Unit) 
             )
         }
     }
+}
+
+@Composable
+private fun ChampRecherche(
+    valeur: String,
+    onChange: (String) -> Unit,
+    onEffacer: () -> Unit
+) {
+    OutlinedTextField(
+        value = valeur,
+        onValueChange = onChange,
+        singleLine = true,
+        label = { Text("Rechercher (titre, id, origine…)") },
+        trailingIcon = {
+            if (valeur.isNotEmpty()) {
+                IconButton(onClick = onEffacer) {
+                    Icon(Icons.Filled.Close, contentDescription = "Effacer la recherche")
+                }
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
