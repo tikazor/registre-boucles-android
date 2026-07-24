@@ -27,6 +27,9 @@ val Surface2Sombre = Color(0xFF212F3D)
 val LigneSombre = Color(0xFF2B3A48)
 val BrandSombre = Color(0xFF7FB0E0)
 
+// Fond crème des cartes du widget (charte 02, demandé explicitement).
+val FillCream = Color(0xFFF3ECE3)
+
 // Badges de statut (couleurs fixes dans les deux thèmes).
 val StatutOuverte = Marine
 val StatutEnCours = Teal

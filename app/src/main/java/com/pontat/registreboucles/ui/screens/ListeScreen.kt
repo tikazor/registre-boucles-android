@@ -175,7 +175,7 @@ fun ListeScreen(
     }
 
     Scaffold(
-        floatingActionButtonPosition = FabPosition.Start,
+        floatingActionButtonPosition = FabPosition.End,
         topBar = {
             TopAppBar(
                 title = {
