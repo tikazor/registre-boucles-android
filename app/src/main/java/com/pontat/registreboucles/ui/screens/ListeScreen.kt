@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -134,7 +135,9 @@ fun ListeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
+    val sheetEditionState = rememberModalBottomSheetState()
     var creationOuverte by remember { mutableStateOf(false) }
+    var editionCible by remember { mutableStateOf<Boucle?>(null) }
     val boucles by vm.boucles.collectAsStateWithLifecycle()
     val filtre by vm.filtreStatut.collectAsStateWithLifecycle()
     val recherche by vm.recherche.collectAsStateWithLifecycle()
@@ -345,6 +348,7 @@ fun ListeScreen(
                             vm = vm,
                             onToggle = { expandedId = if (expandedId == b.id) null else b.id },
                             onDemandeMouvement = { mouvementCible = b.id },
+                            onModifier = { editionCible = b },
                             onCloturer = { clotureCible = b.id },
                             onOuvrirJournal = { onOuvrirJournal(b.id) }
                         )
@@ -389,6 +393,24 @@ fun ListeScreen(
                 onFerme = {
                     scope.launch { sheetState.hide() }.invokeOnCompletion {
                         if (!sheetState.isVisible) creationOuverte = false
+                    }
+                }
+            )
+        }
+    }
+
+    // Édition d'une boucle existante en bottom sheet (icône crayon des cartes).
+    editionCible?.let { cible ->
+        ModalBottomSheet(
+            onDismissRequest = { editionCible = null },
+            sheetState = sheetEditionState
+        ) {
+            CreationForm(
+                vm = vm,
+                boucleAModifier = cible,
+                onFerme = {
+                    scope.launch { sheetEditionState.hide() }.invokeOnCompletion {
+                        if (!sheetEditionState.isVisible) editionCible = null
                     }
                 }
             )
@@ -474,6 +496,7 @@ private fun CarteBoucle(
     vm: BoucleViewModel,
     onToggle: () -> Unit,
     onDemandeMouvement: () -> Unit,
+    onModifier: () -> Unit,
     onCloturer: () -> Unit,
     onOuvrirJournal: () -> Unit
 ) {
@@ -526,6 +549,7 @@ private fun CarteBoucle(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     RondIcone(Icons.Filled.Add, MaterialTheme.colorScheme.primary, "Ajouter un mouvement", onDemandeMouvement)
+                    RondIcone(Icons.Filled.Edit, Marine, "Modifier", onModifier)
                     if (ouverte) RondIcone(Icons.Filled.Check, Teal, "Clôturer", onCloturer)
                 }
                 Icon(

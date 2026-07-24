@@ -146,6 +146,41 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Modifie une boucle existante. Ne touche qu'aux champs éditables du
+     * formulaire ; id, date de création, statut, blocage et action par défaut
+     * sont préservés (rechargés depuis la base). N'affecte pas le flux d'ajout.
+     */
+    fun modifier(
+        id: String,
+        titre: String,
+        type: String,
+        origine: String,
+        preuveAttendue: String,
+        impact: String,
+        echeance: Long?,
+        tiers: String?,
+        milieu: String?,
+        onFait: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val existante = repository.obtenir(id) ?: return@launch
+            repository.mettreAJour(
+                existante.copy(
+                    titre = titre,
+                    type = type,
+                    origine = origine,
+                    preuveAttendue = preuveAttendue,
+                    impact = impact,
+                    echeance = echeance,
+                    tiers = tiers,
+                    milieu = milieu
+                )
+            )
+            onFait()
+        }
+    }
+
     fun ajouterMouvement(boucleId: String, type: String, contenu: String) {
         viewModelScope.launch {
             repository.ajouterMouvement(

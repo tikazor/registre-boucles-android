@@ -35,31 +35,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.formaterDate
 
 /**
- * Formulaire de création, présenté dans une bottom sheet. [onFerme] est appelé
- * après validation (la sheet se referme). Type / Tiers / Milieu sont des listes
- * à choix unique dont les valeurs viennent de la configuration.
+ * Formulaire de création OU d'édition, présenté dans une bottom sheet.
+ * Si [boucleAModifier] est non-null, le formulaire est pré-rempli et la
+ * validation met à jour la boucle (les champs hors formulaire — statut,
+ * blocage, défaut, dates — sont préservés côté ViewModel). Sinon, création
+ * d'une nouvelle boucle (flux inchangé). [onFerme] referme la sheet.
+ * Type / Tiers / Milieu sont des listes à choix unique configurables.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreationForm(
     vm: BoucleViewModel,
-    onFerme: () -> Unit
+    onFerme: () -> Unit,
+    boucleAModifier: Boucle? = null
 ) {
     val options by vm.options.collectAsStateWithLifecycle()
+    val enEdition = boucleAModifier != null
+    val cle = boucleAModifier?.id
 
-    var titre by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("") }
-    var origine by remember { mutableStateOf("") }
-    var preuveAttendue by remember { mutableStateOf("") }
-    var impact by remember { mutableStateOf("") }
-    var tiers by remember { mutableStateOf("") }
-    var milieu by remember { mutableStateOf<Milieu?>(null) }
-    var echeance by remember { mutableStateOf<Long?>(null) }
+    var titre by remember(cle) { mutableStateOf(boucleAModifier?.titre ?: "") }
+    var type by remember(cle) { mutableStateOf(boucleAModifier?.type ?: "") }
+    var origine by remember(cle) { mutableStateOf(boucleAModifier?.origine ?: "") }
+    var preuveAttendue by remember(cle) { mutableStateOf(boucleAModifier?.preuveAttendue ?: "") }
+    var impact by remember(cle) { mutableStateOf(boucleAModifier?.impact ?: "") }
+    var tiers by remember(cle) { mutableStateOf(boucleAModifier?.tiers ?: "") }
+    var milieu by remember(cle) { mutableStateOf(boucleAModifier?.let { Milieu.depuis(it.milieu) }) }
+    var echeance by remember(cle) { mutableStateOf(boucleAModifier?.echeance) }
     var datePickerOuvert by remember { mutableStateOf(false) }
 
     val complet = titre.isNotBlank() && type.isNotBlank() &&
@@ -74,7 +81,7 @@ fun CreationForm(
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Nouvelle boucle",
+                if (enEdition) "Modifier la boucle" else "Nouvelle boucle",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
@@ -119,22 +126,37 @@ fun CreationForm(
 
         Button(
             onClick = {
-                vm.creer(
-                    titre = titre.trim(),
-                    type = type.trim(),
-                    origine = origine.trim(),
-                    preuveAttendue = preuveAttendue.trim(),
-                    impact = impact.trim(),
-                    echeance = echeance,
-                    tiers = tiers.ifBlank { null },
-                    milieu = milieu?.name,
-                    onCree = { onFerme() }
-                )
+                if (enEdition) {
+                    vm.modifier(
+                        id = boucleAModifier!!.id,
+                        titre = titre.trim(),
+                        type = type.trim(),
+                        origine = origine.trim(),
+                        preuveAttendue = preuveAttendue.trim(),
+                        impact = impact.trim(),
+                        echeance = echeance,
+                        tiers = tiers.ifBlank { null },
+                        milieu = milieu?.name,
+                        onFait = { onFerme() }
+                    )
+                } else {
+                    vm.creer(
+                        titre = titre.trim(),
+                        type = type.trim(),
+                        origine = origine.trim(),
+                        preuveAttendue = preuveAttendue.trim(),
+                        impact = impact.trim(),
+                        echeance = echeance,
+                        tiers = tiers.ifBlank { null },
+                        milieu = milieu?.name,
+                        onCree = { onFerme() }
+                    )
+                }
             },
             enabled = complet,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Créer la boucle")
+            Text(if (enEdition) "Enregistrer" else "Créer la boucle")
         }
 
         Text(
