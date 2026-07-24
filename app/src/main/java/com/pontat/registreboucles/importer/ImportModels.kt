@@ -12,6 +12,16 @@ data class ExportRacine(
     val boucles: List<BoucleJson> = emptyList()
 )
 
+/**
+ * Racine acceptée à l'import : fichier d'export ({boucles}) OU backup
+ * ({boucles, journaux}). `journaux` est ignoré si absent.
+ */
+@Serializable
+data class ImportRacine(
+    val boucles: List<BoucleJson> = emptyList(),
+    val journaux: List<JournalJson> = emptyList()
+)
+
 @Serializable
 data class BoucleJson(
     val id: String,

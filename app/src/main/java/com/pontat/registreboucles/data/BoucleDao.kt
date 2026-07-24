@@ -85,6 +85,12 @@ interface BoucleDao {
     @Insert
     suspend fun insererJournal(journal: Journal): Long
 
+    @Insert
+    suspend fun insererJournaux(journaux: List<Journal>)
+
+    @Query("DELETE FROM journaux")
+    suspend fun supprimerTousJournaux()
+
     @Query("SELECT * FROM journaux WHERE boucleId = :boucleId ORDER BY date DESC")
     fun observerJournaux(boucleId: String): Flow<List<Journal>>
 

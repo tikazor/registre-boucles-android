@@ -198,7 +198,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
             }
             _erreurImport.value = null
             if (repository.estVide()) {
-                repository.importerEcraser(res.boucles, res.mouvements)
+                repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
                 _baseVide.value = false
             } else {
                 _importEnAttente.value = res
@@ -210,7 +210,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun confirmerAjout() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
-            repository.importerAjouter(res.boucles, res.mouvements)
+            repository.importerAjouter(res.boucles, res.mouvements, res.journaux)
             _importEnAttente.value = null
         }
     }
@@ -219,7 +219,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun confirmerEcrasement() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
-            repository.importerEcraser(res.boucles, res.mouvements)
+            repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
             _importEnAttente.value = null
         }
     }

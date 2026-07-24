@@ -83,27 +83,60 @@ class BoucleRepository(
      * avec leurs mouvements. Les boucles déjà présentes (et leurs mouvements /
      * clôtures faits dans l'app) ne sont PAS touchées. Renvoie le nombre ajouté.
      */
-    suspend fun importerAjouter(boucles: List<Boucle>, mouvements: List<Mouvement>): Int {
+    suspend fun importerAjouter(
+        boucles: List<Boucle>,
+        mouvements: List<Mouvement>,
+        journaux: List<Journal>
+    ): Int {
         val existants = dao.tousLesIds().toSet()
         val nouvelles = boucles.filter { it.id !in existants }
         val nouveauxIds = nouvelles.map { it.id }.toSet()
         val nouveauxMouvements = mouvements.filter { it.boucleId in nouveauxIds }
+        val nouveauxJournaux = journaux.filter { it.boucleId in nouveauxIds }
         dao.upsertToutes(nouvelles)
         dao.insererMouvements(nouveauxMouvements)
+        dao.insererJournaux(completerJournaux(nouvelles, nouveauxJournaux))
         rafraichirWidget()
         return nouvelles.size
     }
 
     /**
      * "Écraser" (aussi utilisé pour l'import initial d'une base vide) :
-     * vide boucles + mouvements puis réinsère le JSON tel quel.
+     * vide boucles + mouvements + journaux puis réinsère (restauration backup incluse).
      */
-    suspend fun importerEcraser(boucles: List<Boucle>, mouvements: List<Mouvement>) {
+    suspend fun importerEcraser(
+        boucles: List<Boucle>,
+        mouvements: List<Mouvement>,
+        journaux: List<Journal>
+    ) {
+        dao.supprimerTousJournaux()
         dao.supprimerTousMouvements()
         dao.supprimerToutesBoucles()
         dao.upsertToutes(boucles)
         dao.insererMouvements(mouvements)
+        dao.insererJournaux(completerJournaux(boucles, journaux))
         rafraichirWidget()
+    }
+
+    /**
+     * Complète les journaux importés : toute boucle FERMÉE sans entrée journal
+     * reçoit une entrée par défaut (l'invariant « aucune fermeture sans journal »
+     * vaut aussi pour les données importées/restaurées).
+     */
+    private fun completerJournaux(boucles: List<Boucle>, journaux: List<Journal>): List<Journal> {
+        val avecJournal = journaux.mapTo(HashSet()) { it.boucleId }
+        val maintenant = System.currentTimeMillis()
+        val defauts = boucles
+            .filter { it.statut == "fermee" && it.id !in avecJournal }
+            .map {
+                Journal(
+                    boucleId = it.id,
+                    date = maintenant,
+                    type = JournalType.DECLARATION.name,
+                    texte = "Clôture importée (sans preuve d'origine)"
+                )
+            }
+        return journaux + defauts
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.pontat.registreboucles.importer
 
 import com.pontat.registreboucles.data.Boucle
+import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -12,10 +13,11 @@ import java.time.format.DateTimeParseException
 /** Erreur d'import lisible affichée à l'écran (jamais de crash silencieux). */
 class ImportException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** Résultat d'un import : boucles + mouvements prêts pour Room. */
+/** Résultat d'un import : boucles + mouvements + journaux prêts pour Room. */
 data class ImportResult(
     val boucles: List<Boucle>,
-    val mouvements: List<Mouvement>
+    val mouvements: List<Mouvement>,
+    val journaux: List<Journal>
 )
 
 object JsonImporter {
@@ -35,7 +37,7 @@ object JsonImporter {
         }
 
         val racine = try {
-            json.decodeFromString<ExportRacine>(contenu)
+            json.decodeFromString<ImportRacine>(contenu)
         } catch (e: Exception) {
             throw ImportException(
                 "Format JSON invalide ou champ obligatoire manquant.\n" +
@@ -85,7 +87,17 @@ object JsonImporter {
             }
         }
 
-        return ImportResult(boucles, mouvements)
+        // Journaux (présents dans les fichiers de backup ; absents des exports simples).
+        val journaux = racine.journaux.map { j ->
+            Journal(
+                boucleId = j.boucleId,
+                date = parseDate(j.date, "date (journal)", j.boucleId),
+                type = j.type,
+                texte = j.texte
+            )
+        }
+
+        return ImportResult(boucles, mouvements, journaux)
     }
 
     /**
