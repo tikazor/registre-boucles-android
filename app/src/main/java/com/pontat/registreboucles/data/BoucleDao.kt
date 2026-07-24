@@ -37,6 +37,9 @@ interface BoucleDao {
     @Query("SELECT COUNT(*) FROM boucles")
     suspend fun compter(): Int
 
+    // NB : ('ouverte', 'en_cours') = Statut.estActive() en valeurs stockées.
+    // Toute évolution de la définition d'« active » doit rester synchronisée
+    // avec Statut.estActive() (cf. data/Statut.kt), seule vérité de l'app.
     @Query("SELECT COUNT(*) FROM boucles WHERE statut IN ('ouverte', 'en_cours')")
     suspend fun compterActives(): Int
 

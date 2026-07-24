@@ -127,7 +127,8 @@ class BoucleRepository(
         val avecJournal = journaux.mapTo(HashSet()) { it.boucleId }
         val maintenant = System.currentTimeMillis()
         val defauts = boucles
-            .filter { it.statut == "fermee" && it.id !in avecJournal }
+            // Les DEUX états terminaux (fermee ET defaut_applique) exigent un journal.
+            .filter { it.estTerminal() && it.id !in avecJournal }
             .map {
                 Journal(
                     boucleId = it.id,

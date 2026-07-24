@@ -11,6 +11,7 @@ import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.Mouvement
+import com.pontat.registreboucles.data.Statut
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
 import com.pontat.registreboucles.importer.JsonImporter
@@ -138,7 +139,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
                     blocage = null,
                     impact = impact,
                     defaut = null,
-                    statut = "ouverte",
+                    statut = Statut.OUVERTE.valeurStockee(),
                     milieu = milieu
                 )
             )

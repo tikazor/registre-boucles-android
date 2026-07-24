@@ -3,6 +3,7 @@ package com.pontat.registreboucles.importer
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
+import com.pontat.registreboucles.data.Statut
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDate
@@ -58,6 +59,14 @@ object JsonImporter {
         for (b in racine.boucles) {
             val creee = parseDate(b.creee, "creee", b.id)
             val echeance = b.echeance?.let { parseDate(it, "echeance", b.id) }
+
+            // Statut inconnu = rejet explicite (jamais de retombée silencieuse sur "ouverte").
+            if (Statut.depuis(b.statut) == null) {
+                throw ImportException(
+                    "Statut inconnu pour la boucle \"${b.id}\" : « ${b.statut} ».\n" +
+                        "Valeurs acceptées : ouverte, en_cours, fermee, defaut_applique."
+                )
+            }
 
             boucles += Boucle(
                 id = b.id,

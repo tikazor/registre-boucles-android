@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.Milieu
+import com.pontat.registreboucles.data.estActive
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
@@ -104,8 +105,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-
-private fun estOuverte(b: Boucle): Boolean = b.statut != "fermee"
 
 private fun joursRestants(echeanceMillis: Long): Long {
     val ech = Instant.ofEpochMilli(echeanceMillis).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -176,7 +175,7 @@ fun ListeScreen(
     }
 
     val compteurs = remember(boucles) {
-        val ouv = boucles.filter { estOuverte(it) }
+        val ouv = boucles.filter { it.estActive() }
         Compteurs(
             ouvertes = ouv.size,
             enRetard = ouv.count { it.echeance != null && joursRestants(it.echeance) < 0 },
@@ -190,8 +189,8 @@ fun ListeScreen(
             .filter {
                 when (filtre) {
                     FiltreStatut.TOUTES -> true
-                    FiltreStatut.OUVERTES -> estOuverte(it)
-                    FiltreStatut.FERMEES -> !estOuverte(it)
+                    FiltreStatut.OUVERTES -> it.estActive()
+                    FiltreStatut.FERMEES -> !it.estActive()
                 }
             }
             .filter { filtreMilieu == null || Milieu.depuis(it.milieu) == filtreMilieu }
@@ -506,7 +505,7 @@ private fun CarteBoucle(
     onCloturer: () -> Unit,
     onOuvrirJournal: () -> Unit
 ) {
-    val ouverte = estOuverte(boucle)
+    val ouverte = boucle.estActive()
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
 
     Column(

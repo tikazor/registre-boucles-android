@@ -30,5 +30,5 @@ suspend fun executerCloture(
         Journal(boucleId = boucleId, date = dateMillis, type = type.name, texte = texte.trim())
     )
     val boucle = store.obtenirBoucle(boucleId) ?: return
-    store.mettreAJourBoucle(boucle.copy(statut = "fermee"))
+    store.mettreAJourBoucle(boucle.copy(statut = Statut.FERMEE.valeurStockee()))
 }
