@@ -17,6 +17,8 @@ class StatutTest {
         assertEquals(Statut.FERMEE, Statut.depuis("Fermee"))
         assertEquals(Statut.DEFAUT_APPLIQUE, Statut.depuis("Defaut_Applique"))
         assertEquals(Statut.DEFAUT_APPLIQUE, Statut.depuis("  defaut_applique  "))
+        assertEquals(Statut.PROPOSEE, Statut.depuis("proposee"))
+        assertEquals(Statut.REJETEE, Statut.depuis("REJETEE"))
     }
 
     @Test
@@ -29,12 +31,10 @@ class StatutTest {
     }
 
     @Test
-    fun estActive_et_estTerminal_sont_exclusifs_et_exhaustifs() {
+    fun estActive_et_estTerminal_sont_exclusifs() {
+        // Jamais actif ET terminal en même temps.
         for (s in Statut.entries) {
-            assertTrue(
-                "Exactement un de estActive/estTerminal doit être vrai pour $s",
-                s.estActive() != s.estTerminal()
-            )
+            assertFalse("Actif et terminal exclusifs pour $s", s.estActive() && s.estTerminal())
         }
         assertTrue(Statut.OUVERTE.estActive())
         assertTrue(Statut.EN_COURS.estActive())
@@ -43,8 +43,20 @@ class StatutTest {
 
         assertTrue(Statut.FERMEE.estTerminal())
         assertTrue(Statut.DEFAUT_APPLIQUE.estTerminal())
+        assertTrue(Statut.REJETEE.estTerminal())
         assertFalse(Statut.OUVERTE.estTerminal())
         assertFalse(Statut.EN_COURS.estTerminal())
+    }
+
+    @Test
+    fun proposee_n_est_ni_active_ni_terminale() {
+        assertFalse(Statut.PROPOSEE.estActive())
+        assertFalse(Statut.PROPOSEE.estTerminal())
+        assertTrue(Statut.PROPOSEE.estProposition())
+        // Seule PROPOSEE est « en supervision ».
+        for (s in Statut.entries.filter { it != Statut.PROPOSEE }) {
+            assertFalse("$s ne doit pas être une proposition", s.estProposition())
+        }
     }
 
     @Test

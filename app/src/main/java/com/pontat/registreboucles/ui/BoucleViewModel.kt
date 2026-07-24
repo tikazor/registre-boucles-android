@@ -6,11 +6,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
+import com.pontat.registreboucles.data.ConflitFusion
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.Mouvement
+import com.pontat.registreboucles.data.SourceBoucle
 import com.pontat.registreboucles.data.Statut
 import com.pontat.registreboucles.data.genererProchainId
 import com.pontat.registreboucles.importer.ImportException
@@ -99,6 +101,10 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     val boucles: StateFlow<List<Boucle>> = repository.observerToutes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Propositions IA en attente de supervision (statut PROPOSEE). */
+    val propositions: StateFlow<List<Boucle>> = repository.observerPropositions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Map boucleId -> date du dernier mouvement (étiquette « Modifié le »). */
     val dernieresModifs: StateFlow<Map<String, Long>> = repository.observerDernieresModifs()
         .map { rows -> rows.associate { it.boucleId to it.derniere } }
@@ -141,7 +147,8 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
                     impact = impact,
                     defaut = null,
                     statut = Statut.OUVERTE.valeurStockee(),
-                    milieu = milieu
+                    milieu = milieu,
+                    source = SourceBoucle.USER.valeurStockee()
                 )
             )
             onCree(id)
@@ -202,6 +209,18 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     }
 
     fun observerJournaux(boucleId: String): Flow<List<Journal>> = repository.observerJournaux(boucleId)
+
+    // ── Supervision des propositions IA ──
+
+    /** Accepter : PROPOSEE -> OUVERTE (source IA conservée). */
+    fun accepterProposition(id: String) {
+        viewModelScope.launch { repository.accepter(id) }
+    }
+
+    /** Rejeter : PROPOSEE -> REJETEE avec motif obligatoire (journal DECLARATION). */
+    fun rejeterProposition(id: String, motif: String) {
+        viewModelScope.launch { repository.rejeter(id, motif) }
+    }
 
     /** Backup manuel (depuis Réglages). Renvoie le nom du fichier créé (ou null). */
     fun sauvegarderManuel(onFait: (String?) -> Unit) {
@@ -288,6 +307,42 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     fun annulerImport() {
         _importEnAttente.value = null
+    }
+
+    /** État de la résolution de fusion : le parse en cours + ses conflits scalaires. */
+    data class FusionState(val res: ImportResult, val conflits: List<ConflitFusion>)
+
+    private val _fusionEnCours = MutableStateFlow<FusionState?>(null)
+    val fusionEnCours: StateFlow<FusionState?> = _fusionEnCours.asStateFlow()
+
+    /** "Fusionner" : calcule les conflits scalaires puis ouvre l'écran d'arbitrage. */
+    fun demarrerFusion() {
+        val res = _importEnAttente.value ?: return
+        viewModelScope.launch {
+            val conflits = repository.conflitsFusion(res.boucles)
+            _importEnAttente.value = null
+            _fusionEnCours.value = FusionState(res, conflits)
+        }
+    }
+
+    /** Applique la fusion avec, pour chaque id, le choix « prendre l'entrant ». */
+    fun confirmerFusion(prendreEntrant: Set<String>) {
+        val etat = _fusionEnCours.value ?: return
+        viewModelScope.launch {
+            try {
+                repository.importerFusionner(
+                    etat.res.boucles, etat.res.mouvements, etat.res.journaux, prendreEntrant
+                )
+                _fusionEnCours.value = null
+            } catch (e: Exception) {
+                _fusionEnCours.value = null
+                _erreurImport.value = e.message ?: "Fusion annulée : sauvegarde impossible."
+            }
+        }
+    }
+
+    fun annulerFusion() {
+        _fusionEnCours.value = null
     }
 
     /**

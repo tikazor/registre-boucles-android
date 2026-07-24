@@ -76,6 +76,37 @@ class BoucleRepository(
 
     fun observerJournaux(boucleId: String): Flow<List<Journal>> = dao.observerJournaux(boucleId)
 
+    // ── Supervision des propositions (IA) ──
+
+    /** Propositions en attente (statut PROPOSEE), pour l'écran Supervision. */
+    fun observerPropositions(): Flow<List<Boucle>> =
+        dao.observerParStatut(Statut.PROPOSEE.valeurStockee())
+
+    /**
+     * Accepte une proposition : PROPOSEE -> OUVERTE, source inchangée (IA).
+     * Backup AVANT l'action de supervision (réutilise creerBackup).
+     */
+    suspend fun accepter(id: String) {
+        val boucle = dao.obtenir(id) ?: return
+        creerBackup()
+        dao.mettreAJour(accepterProposition(boucle))
+        rafraichirWidget()
+    }
+
+    /**
+     * Rejette une proposition : PROPOSEE -> REJETEE avec un motif obligatoire
+     * (journal DECLARATION), via l'UNIQUE chemin d'écriture d'état terminal.
+     * Backup AVANT l'action de supervision.
+     */
+    suspend fun rejeter(id: String, motif: String) {
+        creerBackup()
+        executerTransitionTerminale(
+            clotureStore, id, Statut.REJETEE, JournalType.DECLARATION, motif,
+            System.currentTimeMillis()
+        )
+        rafraichirWidget()
+    }
+
     /**
      * Ajoute un mouvement. N'affecte pas la table `boucles`, donc pas de
      * rafraîchissement du widget (compteurs et échéances inchangés).
@@ -125,6 +156,42 @@ class BoucleRepository(
         dao.insererJournaux(completerJournaux(boucles, journaux))
         rafraichirWidget()
     }
+
+    /**
+     * "Fusionner" : enrichit sans jamais détruire (cf. [calculerFusion]).
+     * - mouvements/journaux entrants ajoutés avec déduplication ;
+     * - boucles entrantes nouvelles créées avec leur statut d'origine ;
+     * - boucles existantes : champs scalaires remplacés seulement pour les ids
+     *   de [prendreEntrant] (statut/source/creee préservés).
+     * Backup AVANT écriture, comme les deux autres modes.
+     */
+    suspend fun importerFusionner(
+        boucles: List<Boucle>,
+        mouvements: List<Mouvement>,
+        journaux: List<Journal>,
+        prendreEntrant: Set<String>
+    ) {
+        creerBackupStrict()   // filet AVANT écriture : échec = import annulé
+        val res = calculerFusion(
+            existantes = dao.toutesLesBoucles(),
+            mouvementsExistants = dao.tousLesMouvements(),
+            journauxExistants = dao.tousLesJournaux(),
+            entrantes = boucles,
+            mouvementsEntrants = mouvements,
+            journauxEntrants = journaux,
+            prendreEntrant = prendreEntrant
+        )
+        dao.upsertToutes(res.bouclesNouvelles)
+        res.bouclesMisesAJour.forEach { dao.mettreAJour(it) }
+        dao.insererMouvements(res.mouvementsAjoutes)
+        // Les nouvelles boucles terminales sans journal reçoivent une entrée par défaut.
+        dao.insererJournaux(completerJournaux(res.bouclesNouvelles, res.journauxAjoutes))
+        rafraichirWidget()
+    }
+
+    /** Conflits de fusion (id existant + champ scalaire divergent) pour arbitrage UI. */
+    suspend fun conflitsFusion(entrantes: List<Boucle>): List<ConflitFusion> =
+        calculerConflits(dao.toutesLesBoucles(), entrantes)
 
     /**
      * Complète les journaux importés : toute boucle FERMÉE sans entrée journal

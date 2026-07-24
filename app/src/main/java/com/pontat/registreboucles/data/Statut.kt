@@ -11,13 +11,18 @@ enum class Statut {
     OUVERTE,
     EN_COURS,
     FERMEE,
-    DEFAUT_APPLIQUE;
+    DEFAUT_APPLIQUE,
+    PROPOSEE,          // proposée par une IA : ni active ni terminale, en attente de supervision
+    REJETEE;           // proposition refusée : état terminal (exige un journal, comme la clôture)
 
-    /** Boucle encore à traiter (visible liste + widget). */
+    /** Boucle encore à traiter (visible liste + widget). PROPOSEE en est exclue. */
     fun estActive(): Boolean = this == OUVERTE || this == EN_COURS
 
-    /** Boucle close, quelle que soit la façon (clôturée ou action par défaut appliquée). */
-    fun estTerminal(): Boolean = this == FERMEE || this == DEFAUT_APPLIQUE
+    /** Boucle close (clôturée, action par défaut appliquée, ou proposition rejetée). */
+    fun estTerminal(): Boolean = this == FERMEE || this == DEFAUT_APPLIQUE || this == REJETEE
+
+    /** En attente de supervision : n'existe que dans l'écran Supervision. */
+    fun estProposition(): Boolean = this == PROPOSEE
 
     /** Valeur stockée en base (compat. avec l'existant, toujours en minuscules). */
     fun valeurStockee(): String = name.lowercase()
@@ -43,5 +48,8 @@ fun Boucle.statutTypé(): Statut? = Statut.depuis(statut)
 /** Prédicat unique d'« active » pour toute l'app (liste, widget, filtres). */
 fun Boucle.estActive(): Boolean = statutTypé()?.estActive() == true
 
-/** Prédicat unique de « terminal » (clôturée ou action par défaut appliquée). */
+/** Prédicat unique de « terminal » (clôturée, défaut appliqué, ou rejetée). */
 fun Boucle.estTerminal(): Boolean = statutTypé()?.estTerminal() == true
+
+/** Proposition IA en attente de supervision (exclue de la liste et du widget). */
+fun Boucle.estProposition(): Boolean = statutTypé()?.estProposition() == true

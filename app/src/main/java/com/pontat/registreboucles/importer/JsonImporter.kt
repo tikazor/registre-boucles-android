@@ -3,6 +3,7 @@ package com.pontat.registreboucles.importer
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
+import com.pontat.registreboucles.data.SourceBoucle
 import com.pontat.registreboucles.data.Statut
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -67,7 +68,8 @@ object JsonImporter {
             if (Statut.depuis(b.statut) == null) {
                 throw ImportException(
                     "Statut inconnu pour la boucle \"${b.id}\" : « ${b.statut} ».\n" +
-                        "Valeurs acceptées : ouverte, en_cours, fermee, defaut_applique."
+                        "Valeurs acceptées : ouverte, en_cours, fermee, defaut_applique, " +
+                        "proposee, rejetee."
                 )
             }
 
@@ -84,7 +86,9 @@ object JsonImporter {
                 impact = b.impact,
                 defaut = b.defaut,
                 statut = b.statut,
-                milieu = b.milieu
+                milieu = b.milieu,
+                // L'import respecte la provenance déclarée ; IMPORT par défaut si absente.
+                source = b.source ?: SourceBoucle.IMPORT.valeurStockee()
             )
 
             for (m in b.mouvements) {

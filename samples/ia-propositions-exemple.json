@@ -1,0 +1,101 @@
+{
+  "_commentaire": "Jeu d'essai « fausse IA » conforme à docs/schema.md. Contenu plausible et NON nominatif. IA-001..IA-005 = propositions (supervision). La boucle id B-001 réutilise un id du jeu registre-boucles-exemple.json pour exercer le mode Fusionner (mouvement supplémentaire + blocage divergent).",
+  "version": 2,
+  "boucles": [
+    {
+      "id": "IA-001",
+      "type": "ACTION",
+      "titre": "Vérifier la restaurabilité des sauvegardes hebdomadaires",
+      "origine": "Analyse automatique des journaux d'export",
+      "creee": "2026-07-20",
+      "echeance": "2026-08-03",
+      "tiers": "Équipe technique",
+      "preuveAttendue": "Compte rendu d'une restauration testée sur un jeu récent",
+      "blocage": "Aucune restauration n'a été testée depuis la mise en place",
+      "impact": "Sauvegardes potentiellement inexploitables sans détection",
+      "statut": "proposee",
+      "milieu": "pro",
+      "source": "ia",
+      "mouvements": [
+        { "date": "2026-07-20T08:00:00Z", "note": "Écart détecté sur la rotation des fichiers de sauvegarde" }
+      ]
+    },
+    {
+      "id": "IA-002",
+      "type": "DECISION",
+      "titre": "Trancher la politique de rétention des journaux de clôture",
+      "origine": "Synthèse des volumes de données observés",
+      "creee": "2026-07-20",
+      "echeance": "2026-08-10",
+      "tiers": "Gouvernance",
+      "preuveAttendue": "Note de décision précisant la durée de conservation",
+      "impact": "Croissance non bornée des journaux, sans règle explicite",
+      "statut": "proposee",
+      "milieu": "gouvernance",
+      "source": "ia",
+      "mouvements": []
+    },
+    {
+      "id": "IA-003",
+      "type": "ACTION",
+      "titre": "Documenter la procédure d'export manuel de secours",
+      "origine": "Détection d'une étape non documentée",
+      "creee": "2026-07-21",
+      "preuveAttendue": "Fiche de procédure relue et rangée dans la base documentaire",
+      "impact": "Procédure connue d'une seule personne, risque de perte de savoir",
+      "statut": "proposee",
+      "source": "ia",
+      "mouvements": []
+    },
+    {
+      "id": "IA-004",
+      "type": "ACTION",
+      "titre": "Consolider les valeurs de milieu utilisées dans le registre",
+      "origine": "Analyse de cohérence des champs",
+      "creee": "2026-07-21",
+      "echeance": "2026-08-15",
+      "tiers": "Projet",
+      "preuveAttendue": "Liste des milieux effectivement utilisés, validée",
+      "blocage": "Plusieurs libellés proches coexistent",
+      "impact": "Filtres par milieu peu fiables",
+      "statut": "proposee",
+      "milieu": "projet",
+      "source": "ia",
+      "mouvements": []
+    },
+    {
+      "id": "IA-005",
+      "type": "DECISION",
+      "titre": "Définir un seuil de déclenchement pour le chiffrement local",
+      "origine": "Revue de sécurité des données sensibles",
+      "creee": "2026-07-22",
+      "echeance": "2026-09-01",
+      "tiers": "Gouvernance",
+      "preuveAttendue": "Critère écrit (volume / partage) déclenchant le chiffrement",
+      "impact": "Données sensibles au repos sans règle de protection formalisée",
+      "statut": "proposee",
+      "milieu": "gouvernance",
+      "source": "ia",
+      "mouvements": []
+    },
+    {
+      "id": "B-001",
+      "type": "ACTION",
+      "titre": "Exécuter le script de migration charte 02 (7 modèles CR)",
+      "origine": "Conv. 07/07 — charte graphique CR",
+      "creee": "2026-07-07",
+      "echeance": "2026-07-27",
+      "tiers": "Oui",
+      "preuveAttendue": "7 fichiers _v2.docx vérifiés visuellement sur Host-009",
+      "blocage": "Script prêt ; une fenêtre de vérification visuelle reste à planifier cette semaine.",
+      "impact": "Les CR produits restent en écart avec la charte annoncée.",
+      "statut": "ouverte",
+      "milieu": "pro",
+      "source": "ia",
+      "mouvements": [
+        { "date": "2026-07-22T10:15:00Z", "note": "Proposition IA : relire les 7 fichiers en une passe groupée pour lever le blocage" }
+      ]
+    }
+  ],
+  "journaux": []
+}

@@ -10,12 +10,14 @@ import com.pontat.registreboucles.ui.screens.ConfigScreen
 import com.pontat.registreboucles.ui.screens.DebugScreen
 import com.pontat.registreboucles.ui.screens.JournalScreen
 import com.pontat.registreboucles.ui.screens.ListeScreen
+import com.pontat.registreboucles.ui.screens.SupervisionScreen
 
 object Routes {
     const val LISTE = "liste"
     const val DEBUG = "debug"
     const val CONFIG = "config"
     const val JOURNAL = "journal/{id}"
+    const val SUPERVISION = "supervision"
     fun journal(id: String) = "journal/$id"
 }
 
@@ -30,8 +32,12 @@ fun RegistreNavHost(vm: BoucleViewModel) {
                 vm = vm,
                 onOuvrirDebug = { nav.navigate(Routes.DEBUG) },
                 onOuvrirConfig = { nav.navigate(Routes.CONFIG) },
-                onOuvrirJournal = { id -> nav.navigate(Routes.journal(id)) }
+                onOuvrirJournal = { id -> nav.navigate(Routes.journal(id)) },
+                onOuvrirSupervision = { nav.navigate(Routes.SUPERVISION) }
             )
+        }
+        composable(Routes.SUPERVISION) {
+            SupervisionScreen(vm = vm, onRetour = { nav.popBackStack() })
         }
         composable(Routes.DEBUG) {
             DebugScreen(onRetour = { nav.popBackStack() })

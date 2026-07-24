@@ -1,0 +1,235 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "98012461b657c05c4effa7f894219059",
+    "entities": [
+      {
+        "tableName": "boucles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `titre` TEXT NOT NULL, `origine` TEXT NOT NULL, `creee` INTEGER NOT NULL, `echeance` INTEGER, `tiers` TEXT, `preuveAttendue` TEXT NOT NULL, `blocage` TEXT, `impact` TEXT NOT NULL, `defaut` TEXT, `statut` TEXT NOT NULL, `milieu` TEXT, `source` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titre",
+            "columnName": "titre",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origine",
+            "columnName": "origine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creee",
+            "columnName": "creee",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "echeance",
+            "columnName": "echeance",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tiers",
+            "columnName": "tiers",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "preuveAttendue",
+            "columnName": "preuveAttendue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blocage",
+            "columnName": "blocage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "impact",
+            "columnName": "impact",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaut",
+            "columnName": "defaut",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "statut",
+            "columnName": "statut",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "milieu",
+            "columnName": "milieu",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "mouvements",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mouvementId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `boucleId` TEXT NOT NULL, `date` INTEGER NOT NULL, `type` TEXT NOT NULL, `contenu` TEXT NOT NULL, FOREIGN KEY(`boucleId`) REFERENCES `boucles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "mouvementId",
+            "columnName": "mouvementId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "boucleId",
+            "columnName": "boucleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contenu",
+            "columnName": "contenu",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "mouvementId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_mouvements_boucleId",
+            "unique": false,
+            "columnNames": [
+              "boucleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mouvements_boucleId` ON `${TABLE_NAME}` (`boucleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "boucles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "boucleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "journaux",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`journalId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `boucleId` TEXT NOT NULL, `date` INTEGER NOT NULL, `type` TEXT NOT NULL, `texte` TEXT NOT NULL, FOREIGN KEY(`boucleId`) REFERENCES `boucles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "journalId",
+            "columnName": "journalId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "boucleId",
+            "columnName": "boucleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "texte",
+            "columnName": "texte",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "journalId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_journaux_boucleId",
+            "unique": false,
+            "columnNames": [
+              "boucleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_journaux_boucleId` ON `${TABLE_NAME}` (`boucleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "boucles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "boucleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '98012461b657c05c4effa7f894219059')"
+    ]
+  }
+}

@@ -41,9 +41,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -88,6 +91,8 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.estActive
+import com.pontat.registreboucles.data.estIA
+import com.pontat.registreboucles.data.estProposition
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
@@ -130,7 +135,8 @@ fun ListeScreen(
     vm: BoucleViewModel,
     onOuvrirDebug: () -> Unit,
     onOuvrirConfig: () -> Unit,
-    onOuvrirJournal: (String) -> Unit
+    onOuvrirJournal: (String) -> Unit,
+    onOuvrirSupervision: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -144,6 +150,8 @@ fun ListeScreen(
     val dernieresModifs by vm.dernieresModifs.collectAsStateWithLifecycle()
     val importEnAttente by vm.importEnAttente.collectAsStateWithLifecycle()
     val erreurImport by vm.erreurImport.collectAsStateWithLifecycle()
+    val fusionEnCours by vm.fusionEnCours.collectAsStateWithLifecycle()
+    val propositions by vm.propositions.collectAsStateWithLifecycle()
     val cibleWidget by vm.cibleWidget.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
@@ -174,18 +182,22 @@ fun ListeScreen(
         if (uri != null) vm.exporter(uri) { erreur -> toast(erreur ?: "Export terminé") }
     }
 
-    val compteurs = remember(boucles) {
-        val ouv = boucles.filter { it.estActive() }
+    // Les propositions (PROPOSEE) n'existent que dans l'écran Supervision :
+    // exclues de la liste principale ET des compteurs.
+    val registre = remember(boucles) { boucles.filter { !it.estProposition() } }
+
+    val compteurs = remember(registre) {
+        val ouv = registre.filter { it.estActive() }
         Compteurs(
             ouvertes = ouv.size,
             enRetard = ouv.count { it.echeance != null && joursRestants(it.echeance) < 0 },
             bientot = ouv.count { it.echeance != null && joursRestants(it.echeance) in 0..7 },
-            total = boucles.size,
-            fermees = boucles.size - ouv.size
+            total = registre.size,
+            fermees = registre.size - ouv.size
         )
     }
-    val liste = remember(boucles, filtre, recherche, filtreMilieu) {
-        boucles
+    val liste = remember(registre, filtre, recherche, filtreMilieu) {
+        registre
             .filter {
                 when (filtre) {
                     FiltreStatut.TOUTES -> true
@@ -208,6 +220,16 @@ fun ListeScreen(
         }
     }
 
+    // Étape d'arbitrage de fusion : écran plein dédié tant qu'elle est en cours.
+    fusionEnCours?.let { etat ->
+        FusionScreen(
+            etat = etat,
+            onValider = { prendre -> vm.confirmerFusion(prendre) },
+            onAnnuler = { vm.annulerFusion() }
+        )
+        return
+    }
+
     Scaffold(
         floatingActionButtonPosition = FabPosition.End,
         topBar = {
@@ -225,6 +247,14 @@ fun ListeScreen(
                     )
                 },
                 actions = {
+                    // Badge Supervision : nombre de propositions en attente (masqué si zéro).
+                    if (propositions.isNotEmpty()) {
+                        IconButton(onClick = onOuvrirSupervision) {
+                            BadgedBox(badge = { Badge { Text(propositions.size.toString()) } }) {
+                                Icon(Icons.Filled.Inbox, contentDescription = "Supervision")
+                            }
+                        }
+                    }
                     IconButton(onClick = { menuOuvert = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
                     }
@@ -432,12 +462,20 @@ fun ListeScreen(
             text = {
                 Text(
                     "La base contient déjà des données.\n\n" +
-                        "• Ajouter : n'insère que les boucles absentes. Tes boucles actuelles, " +
-                        "clôtures et mouvements ajoutés dans l'app sont conservés.\n\n" +
-                        "• Écraser : vide tout (boucles + mouvements) et réimporte le fichier tel quel."
+                        "• Ajouter : n'insère que les boucles absentes. Tes boucles, clôtures " +
+                        "et mouvements sont conservés.\n\n" +
+                        "• Fusionner : enrichit sans rien détruire. Mouvements et journaux " +
+                        "ajoutés (sans doublon) ; pour les boucles existantes divergentes, tu " +
+                        "arbitres champ à conserver.\n\n" +
+                        "• Écraser : vide tout et réimporte le fichier tel quel."
                 )
             },
-            confirmButton = { TextButton(onClick = { vm.confirmerAjout() }) { Text("Ajouter") } },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { vm.confirmerAjout() }) { Text("Ajouter") }
+                    TextButton(onClick = { vm.demarrerFusion() }) { Text("Fusionner") }
+                }
+            },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { vm.confirmerEcrasement() }) { Text("Écraser", color = Alerte) }
@@ -530,7 +568,11 @@ private fun CarteBoucle(
                         modifier = Modifier.padding(top = 3.dp)
                     )
                 }
-                BadgeStatut(boucle.statut)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    BadgeStatut(boucle.statut)
+                    // Marqueur discret pour les boucles proposées puis acceptées depuis une IA.
+                    if (boucle.estIA()) EtiquetteIA()
+                }
             }
 
             Row(

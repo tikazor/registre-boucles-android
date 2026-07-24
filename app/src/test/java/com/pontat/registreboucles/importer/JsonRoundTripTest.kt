@@ -27,7 +27,8 @@ class JsonRoundTripTest {
         impact = "Permanence impossible à organiser",
         defaut = "Relancer à J+7",
         statut = "ouverte",
-        milieu = "PRO"
+        milieu = "PRO",
+        source = "user"
     )
 
     // Boucle "minimale" : tiers null, échéance null, milieu absent, statut terminal.
@@ -44,7 +45,8 @@ class JsonRoundTripTest {
         impact = "Traçabilité",
         defaut = null,
         statut = "fermee",
-        milieu = null
+        milieu = null,
+        source = "ia"
     )
 
     // Mouvements de A, déjà triés par date (l'export trie ; type "declaration"
@@ -96,6 +98,22 @@ class JsonRoundTripTest {
         val res = JsonImporter.parse(baseJson(tiersBrut = "null"))
         assertEquals(1, res.boucles.size)
         assertEquals(0, res.journaux.size)
+    }
+
+    @Test
+    fun source_et_nouveaux_statuts_survivent_a_l_aller_retour() {
+        val proposition = boucleA.copy(id = "IA-009", statut = "proposee", source = "ia")
+        val rejetee = boucleB.copy(id = "IA-010", statut = "rejetee", source = "ia")
+        val json = JsonExporter.serialiser(listOf(proposition, rejetee), emptyList(), emptyList())
+        val res = JsonImporter.parse(json)
+        assertEquals(listOf(proposition, rejetee), res.boucles)
+    }
+
+    @Test
+    fun source_absente_a_l_import_devient_import() {
+        // baseJson n'écrit pas de champ "source".
+        val res = JsonImporter.parse(baseJson(tiersBrut = "null"))
+        assertEquals("import", res.boucles.single().source)
     }
 
     private fun baseJson(tiersBrut: String): String = """

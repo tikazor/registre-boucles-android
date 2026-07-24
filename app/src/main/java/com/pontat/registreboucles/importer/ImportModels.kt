@@ -39,6 +39,7 @@ data class BoucleJson(
     val defaut: String? = null,
     val statut: String,
     val milieu: String? = null,
+    val source: String? = null,     // user / ia / import (absent -> import à l'entrée)
     val mouvements: List<MouvementJson> = emptyList()
 )
 

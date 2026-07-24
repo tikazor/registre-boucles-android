@@ -55,7 +55,8 @@ fun CreationForm(
     vm: BoucleViewModel,
     onFerme: () -> Unit,
     boucleAModifier: Boucle? = null,
-    afficherEnregistrerEnTete: Boolean = false
+    afficherEnregistrerEnTete: Boolean = false,
+    onEnregistre: (() -> Unit)? = null
 ) {
     val options by vm.options.collectAsStateWithLifecycle()
     val enEdition = boucleAModifier != null
@@ -87,7 +88,9 @@ fun CreationForm(
                 echeance = echeance,
                 tiers = tiers.ifBlank { null },
                 milieu = milieu?.name,
-                onFait = { onFerme() }
+                // onEnregistre ne se déclenche QUE sur une sauvegarde réussie
+                // (pas sur une fermeture/annulation) — utilisé par « Amender ».
+                onFait = { onEnregistre?.invoke(); onFerme() }
             )
         } else {
             vm.creer(
