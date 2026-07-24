@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -53,7 +54,8 @@ import com.pontat.registreboucles.ui.formaterDate
 fun CreationForm(
     vm: BoucleViewModel,
     onFerme: () -> Unit,
-    boucleAModifier: Boucle? = null
+    boucleAModifier: Boucle? = null,
+    afficherEnregistrerEnTete: Boolean = false
 ) {
     val options by vm.options.collectAsStateWithLifecycle()
     val enEdition = boucleAModifier != null
@@ -72,6 +74,36 @@ fun CreationForm(
     val complet = titre.isNotBlank() && type.isNotBlank() &&
         origine.isNotBlank() && preuveAttendue.isNotBlank() && impact.isNotBlank()
 
+    // Action de soumission partagée entre le bouton du bas et l'icône d'en-tête.
+    val soumettre: () -> Unit = {
+        if (enEdition) {
+            vm.modifier(
+                id = boucleAModifier!!.id,
+                titre = titre.trim(),
+                type = type.trim(),
+                origine = origine.trim(),
+                preuveAttendue = preuveAttendue.trim(),
+                impact = impact.trim(),
+                echeance = echeance,
+                tiers = tiers.ifBlank { null },
+                milieu = milieu?.name,
+                onFait = { onFerme() }
+            )
+        } else {
+            vm.creer(
+                titre = titre.trim(),
+                type = type.trim(),
+                origine = origine.trim(),
+                preuveAttendue = preuveAttendue.trim(),
+                impact = impact.trim(),
+                echeance = echeance,
+                tiers = tiers.ifBlank { null },
+                milieu = milieu?.name,
+                onCree = { onFerme() }
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -86,6 +118,19 @@ fun CreationForm(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
+            // En ouverture partielle, le bouton du bas est hors écran : on
+            // propose un raccourci « enregistrer » dans l'en-tête (retiré une
+            // fois la sheet pleinement ouverte).
+            if (afficherEnregistrerEnTete) {
+                IconButton(onClick = soumettre, enabled = complet) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = if (enEdition) "Enregistrer" else "Créer la boucle",
+                        tint = if (complet) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                }
+            }
             IconButton(onClick = onFerme) {
                 Icon(Icons.Filled.Close, contentDescription = "Fermer")
             }
@@ -125,34 +170,7 @@ fun CreationForm(
         }
 
         Button(
-            onClick = {
-                if (enEdition) {
-                    vm.modifier(
-                        id = boucleAModifier!!.id,
-                        titre = titre.trim(),
-                        type = type.trim(),
-                        origine = origine.trim(),
-                        preuveAttendue = preuveAttendue.trim(),
-                        impact = impact.trim(),
-                        echeance = echeance,
-                        tiers = tiers.ifBlank { null },
-                        milieu = milieu?.name,
-                        onFait = { onFerme() }
-                    )
-                } else {
-                    vm.creer(
-                        titre = titre.trim(),
-                        type = type.trim(),
-                        origine = origine.trim(),
-                        preuveAttendue = preuveAttendue.trim(),
-                        impact = impact.trim(),
-                        echeance = echeance,
-                        tiers = tiers.ifBlank { null },
-                        milieu = milieu?.name,
-                        onCree = { onFerme() }
-                    )
-                }
-            },
+            onClick = soumettre,
             enabled = complet,
             modifier = Modifier.fillMaxWidth()
         ) {

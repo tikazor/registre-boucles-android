@@ -60,6 +60,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -405,9 +406,14 @@ fun ListeScreen(
             onDismissRequest = { editionCible = null },
             sheetState = sheetEditionState
         ) {
+            // En ouverture partielle, le bouton « Enregistrer » du bas est hors
+            // écran : on affiche alors un raccourci dans l'en-tête, retiré dès
+            // que la sheet est pleinement dépliée.
+            val pleinementOuverte = sheetEditionState.currentValue == SheetValue.Expanded
             CreationForm(
                 vm = vm,
                 boucleAModifier = cible,
+                afficherEnregistrerEnTete = !pleinementOuverte,
                 onFerme = {
                     scope.launch { sheetEditionState.hide() }.invokeOnCompletion {
                         if (!sheetEditionState.isVisible) editionCible = null
