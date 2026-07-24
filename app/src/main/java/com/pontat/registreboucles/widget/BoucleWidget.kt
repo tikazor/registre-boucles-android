@@ -23,9 +23,9 @@ import androidx.compose.ui.unit.dp
 import com.pontat.registreboucles.MainActivity
 import com.pontat.registreboucles.data.AppDatabase
 import com.pontat.registreboucles.data.Boucle
-import com.pontat.registreboucles.ui.theme.Brown
-import com.pontat.registreboucles.ui.theme.FillCream
-import com.pontat.registreboucles.ui.theme.TexteFonce
+import com.pontat.registreboucles.ui.theme.EncreClair
+import com.pontat.registreboucles.ui.theme.FondClair
+import com.pontat.registreboucles.ui.theme.Marine
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -52,11 +52,11 @@ class BoucleWidget : GlanceAppWidget() {
         // Material You (couleurs système) si Android 12+, sinon palette charte 02 figée.
         val dynamique = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         val primary: ColorProvider =
-            if (dynamique) ColorProvider(android.R.color.system_accent1_600) else ColorProvider(Brown)
+            if (dynamique) ColorProvider(android.R.color.system_accent1_600) else ColorProvider(Marine)
         val fond: ColorProvider =
-            if (dynamique) ColorProvider(android.R.color.system_neutral1_50) else ColorProvider(FillCream)
+            if (dynamique) ColorProvider(android.R.color.system_neutral1_50) else ColorProvider(FondClair)
         val texte: ColorProvider =
-            if (dynamique) ColorProvider(android.R.color.system_neutral1_900) else ColorProvider(TexteFonce)
+            if (dynamique) ColorProvider(android.R.color.system_neutral1_900) else ColorProvider(EncreClair)
 
         Column(
             modifier = GlanceModifier

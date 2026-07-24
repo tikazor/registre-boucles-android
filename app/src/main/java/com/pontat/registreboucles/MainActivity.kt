@@ -26,12 +26,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val repository = (application as RegistreApplication).repository
         setContent {
-            RegistreBouclesTheme {
+            val vm: BoucleViewModel = viewModel(factory = BoucleViewModel.Factory(repository))
+            val sombre by vm.modeSombre.collectAsStateWithLifecycle()
+            RegistreBouclesTheme(darkTheme = sombre) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val vm: BoucleViewModel = viewModel(factory = BoucleViewModel.Factory(repository))
                     App(vm)
                 }
             }

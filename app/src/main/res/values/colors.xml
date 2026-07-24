@@ -1,8 +1,8 @@
 <resources>
-    <!-- Charte 02 -->
-    <color name="brown">#8A5A44</color>
-    <color name="sage">#6B8F71</color>
-    <color name="border_beige">#EADFCF</color>
-    <color name="fill_cream">#F3ECE3</color>
-    <color name="ic_launcher_background">#F3ECE3</color>
+    <!-- Système marine / sarcelle -->
+    <color name="marine">#1E3A5F</color>
+    <color name="marine_fonce">#152B47</color>
+    <color name="teal">#2E7D74</color>
+    <color name="fond">#ECEFF3</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

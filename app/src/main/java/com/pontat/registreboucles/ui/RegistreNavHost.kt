@@ -1,22 +1,19 @@
 package com.pontat.registreboucles.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.pontat.registreboucles.ui.screens.CreationScreen
 import com.pontat.registreboucles.ui.screens.DebugScreen
-import com.pontat.registreboucles.ui.screens.DetailScreen
 import com.pontat.registreboucles.ui.screens.ListeScreen
 
 object Routes {
     const val LISTE = "liste"
     const val CREATION = "creation"
     const val DEBUG = "debug"
-    const val DETAIL = "detail/{id}"
-    fun detail(id: String) = "detail/$id"
 }
 
 @Composable
@@ -28,25 +25,27 @@ fun RegistreNavHost(vm: BoucleViewModel) {
         composable(Routes.LISTE) {
             ListeScreen(
                 vm = vm,
-                onOuvrirDetail = { id -> nav.navigate(Routes.detail(id)) },
                 onCreer = { nav.navigate(Routes.CREATION) },
                 onOuvrirDebug = { nav.navigate(Routes.DEBUG) }
             )
         }
 
+        // Création : panneau qui glisse depuis la droite (slideInRight / slideOutRight).
         composable(
-            route = Routes.DETAIL,
-            arguments = listOf(navArgument("id") { type = NavType.StringType })
-        ) { entry ->
-            val id = entry.arguments?.getString("id").orEmpty()
-            DetailScreen(
-                vm = vm,
-                boucleId = id,
-                onRetour = { nav.popBackStack() }
-            )
-        }
-
-        composable(Routes.CREATION) {
+            route = Routes.CREATION,
+            enterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = tween(260)
+                )
+            }
+        ) {
             CreationScreen(
                 vm = vm,
                 onRetour = { nav.popBackStack() },

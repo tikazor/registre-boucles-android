@@ -1,49 +1,56 @@
 package com.pontat.registreboucles.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
-    primary = Brown,
-    onPrimary = BlancCasse,
-    secondary = Sage,
-    onSecondary = BlancCasse,
-    background = FillCream,
-    onBackground = TexteFonce,
-    surface = BlancCasse,
-    onSurface = TexteFonce,
-    surfaceVariant = FillCream,
-    onSurfaceVariant = TexteFonce,
-    outline = BorderBeige,
-    outlineVariant = BorderBeige
+    primary = Marine,
+    onPrimary = Blanc,
+    secondary = Teal,
+    onSecondary = Blanc,
+    background = FondClair,
+    onBackground = EncreClair,
+    surface = SurfaceClair,
+    onSurface = EncreClair,
+    surfaceVariant = Surface2Clair,
+    onSurfaceVariant = EncreClair,
+    outline = LigneClair,
+    outlineVariant = LigneClair,
+    error = Alerte,
+    onError = Blanc
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Brown,
-    onPrimary = BlancCasse,
-    secondary = Sage,
-    onSecondary = BlancCasse,
-    background = TexteFonce,
-    onBackground = FillCream,
-    surface = Color(0xFF2A211B),
-    onSurface = FillCream,
-    outline = Brown
+    primary = BrandSombre,
+    onPrimary = MarineFonce,
+    secondary = Teal,
+    onSecondary = Blanc,
+    background = FondSombre,
+    onBackground = EncreSombre,
+    surface = SurfaceSombre,
+    onSurface = EncreSombre,
+    surfaceVariant = Surface2Sombre,
+    onSurfaceVariant = EncreSombre,
+    outline = LigneSombre,
+    outlineVariant = LigneSombre,
+    error = Alerte,
+    onError = Blanc
 )
 
+/**
+ * Thème piloté par un choix explicite (toggle du menu), pas par le système —
+ * conforme au prototype. En-tête marine et badges gardent des couleurs fixes ;
+ * seuls fonds / surfaces / texte / filets basculent.
+ */
 @Composable
 fun RegistreBouclesTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
-    // Design figé : palette statique de la charte, pas de couleurs dynamiques
-    // dans l'app (le Material You dynamique est réservé au widget, cf. étape 5).
-    val colors = if (darkTheme) DarkColors else LightColors
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = MaterialTheme.typography,
         content = content
     )

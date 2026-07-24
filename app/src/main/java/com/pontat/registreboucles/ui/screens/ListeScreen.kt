@@ -1,36 +1,57 @@
 package com.pontat.registreboucles.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -45,19 +66,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.widget.Toast
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
 import com.pontat.registreboucles.ui.formaterDate
+import com.pontat.registreboucles.ui.formaterDateHeure
 import com.pontat.registreboucles.ui.libelleStatut
+import com.pontat.registreboucles.ui.theme.Alerte
+import com.pontat.registreboucles.ui.theme.Marine
+import com.pontat.registreboucles.ui.theme.Teal
+import com.pontat.registreboucles.ui.theme.Warn
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
@@ -67,7 +95,11 @@ import java.time.temporal.ChronoUnit
 
 private fun estOuverte(b: Boucle): Boolean = b.statut != "fermee"
 
-/** Recherche libre insensible à la casse sur les champs texte de la boucle. */
+private fun joursRestants(echeanceMillis: Long): Long {
+    val ech = Instant.ofEpochMilli(echeanceMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+    return ChronoUnit.DAYS.between(LocalDate.now(ZoneId.systemDefault()), ech)
+}
+
 private fun correspond(b: Boucle, requete: String): Boolean {
     val q = requete.trim().lowercase()
     if (q.isEmpty()) return true
@@ -77,28 +109,30 @@ private fun correspond(b: Boucle, requete: String): Boolean {
     ).any { it.lowercase().contains(q) }
 }
 
-/** Jours (calendaires, fuseau local) entre aujourd'hui et l'échéance. Négatif = en retard. */
-private fun joursRestants(echeanceMillis: Long): Long {
-    val ech = Instant.ofEpochMilli(echeanceMillis).atZone(ZoneId.systemDefault()).toLocalDate()
-    return ChronoUnit.DAYS.between(LocalDate.now(ZoneId.systemDefault()), ech)
-}
+private data class Compteurs(
+    val ouvertes: Int, val enRetard: Int, val bientot: Int, val total: Int, val fermees: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListeScreen(
     vm: BoucleViewModel,
-    onOuvrirDetail: (String) -> Unit,
     onCreer: () -> Unit,
     onOuvrirDebug: () -> Unit
 ) {
+    val context = LocalContext.current
     val boucles by vm.boucles.collectAsStateWithLifecycle()
-    // Filtres hébergés dans le ViewModel : persistent aux aller-retours de navigation.
     val filtre by vm.filtreStatut.collectAsStateWithLifecycle()
     val recherche by vm.recherche.collectAsStateWithLifecycle()
-
-    val context = LocalContext.current
+    val dernieresModifs by vm.dernieresModifs.collectAsStateWithLifecycle()
     val importEnAttente by vm.importEnAttente.collectAsStateWithLifecycle()
     val erreurImport by vm.erreurImport.collectAsStateWithLifecycle()
+
+    var menuOuvert by remember { mutableStateOf(false) }
+    var expandedId by remember { mutableStateOf<String?>(null) }
+    var mouvementCible by remember { mutableStateOf<String?>(null) }
+
+    val toast: (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -112,34 +146,22 @@ fun ListeScreen(
             vm.preparerImport(contenu ?: "")
         }
     }
-
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        if (uri != null) {
-            vm.exporter(uri) { ok ->
-                Toast.makeText(
-                    context,
-                    if (ok) "Export terminé" else "Échec de l'export",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
+        if (uri != null) vm.exporter(uri) { ok -> toast(if (ok) "Export terminé" else "Échec de l'export") }
     }
 
-    var menuOuvert by remember { mutableStateOf(false) }
-
-    // Résumé calculé en mémoire depuis les données déjà chargées (pas de requête Room).
-    val resume = remember(boucles) {
-        val ouvertes = boucles.filter { estOuverte(it) }
-        Resume(
-            ouvertes = ouvertes.size,
-            enRetard = ouvertes.count { it.echeance != null && joursRestants(it.echeance) < 0 },
-            bientot = ouvertes.count { it.echeance != null && joursRestants(it.echeance) in 0..7 }
+    val compteurs = remember(boucles) {
+        val ouv = boucles.filter { estOuverte(it) }
+        Compteurs(
+            ouvertes = ouv.size,
+            enRetard = ouv.count { it.echeance != null && joursRestants(it.echeance) < 0 },
+            bientot = ouv.count { it.echeance != null && joursRestants(it.echeance) in 0..7 },
+            total = boucles.size,
+            fermees = boucles.size - ouv.size
         )
     }
-
-    // Liste filtrée localement (statut + recherche). Déjà triée par échéance côté DAO.
     val liste = remember(boucles, filtre, recherche) {
         boucles
             .filter {
@@ -153,12 +175,12 @@ fun ListeScreen(
     }
 
     Scaffold(
+        floatingActionButtonPosition = FabPosition.Start,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
                         text = "Registre des Boucles",
-                        // Appui long 2s sur le titre → écran Debug caché.
                         modifier = Modifier.pointerInput(Unit) {
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false)
@@ -170,18 +192,12 @@ fun ListeScreen(
                 },
                 actions = {
                     IconButton(onClick = { menuOuvert = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions")
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
                     }
-                    DropdownMenu(
-                        expanded = menuOuvert,
-                        onDismissRequest = { menuOuvert = false }
-                    ) {
+                    DropdownMenu(expanded = menuOuvert, onDismissRequest = { menuOuvert = false }) {
                         DropdownMenuItem(
                             text = { Text("Importer un JSON") },
-                            onClick = {
-                                menuOuvert = false
-                                importLauncher.launch(arrayOf("application/json"))
-                            }
+                            onClick = { menuOuvert = false; importLauncher.launch(arrayOf("application/json")) }
                         )
                         DropdownMenuItem(
                             text = { Text("Exporter (JSON)") },
@@ -191,36 +207,70 @@ fun ListeScreen(
                                 exportLauncher.launch("boucles-export-$jour.json")
                             }
                         )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(if (vm.modeSombre.value) "Mode clair" else "Mode sombre") },
+                            leadingIcon = { Icon(Icons.Filled.DarkMode, contentDescription = null) },
+                            onClick = { menuOuvert = false; vm.basculerModeSombre() }
+                        )
                     }
                 },
+                // En-tête marine fixe dans les deux thèmes.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = Marine,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreer,
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary
+                containerColor = Teal,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Créer une boucle")
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            BandeauResume(resume)
-            ChipsFiltre(filtre = filtre, onChange = { vm.setFiltreStatut(it) })
-            ChampRecherche(
-                valeur = recherche,
-                onChange = { vm.setRecherche(it) },
-                onEffacer = { vm.setRecherche("") }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+
+            // 3 tuiles stats.
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp, 12.dp, 12.dp, 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatTile("Ouvertes", compteurs.ouvertes, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                StatTile("En retard", compteurs.enRetard, Alerte, Modifier.weight(1f))
+                StatTile("≤ 7 jours", compteurs.bientot, Warn, Modifier.weight(1f))
+            }
+
+            // Filtres segmentés avec compteurs.
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp, 0.dp, 12.dp, 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SegmentFiltre("Toutes", compteurs.total, filtre == FiltreStatut.TOUTES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.TOUTES) }
+                SegmentFiltre("Ouvertes", compteurs.ouvertes, filtre == FiltreStatut.OUVERTES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.OUVERTES) }
+                SegmentFiltre("Fermées", compteurs.fermees, filtre == FiltreStatut.FERMEES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.FERMEES) }
+            }
+
+            // Recherche.
+            OutlinedTextField(
+                value = recherche,
+                onValueChange = { vm.setRecherche(it) },
+                singleLine = true,
+                placeholder = { Text("Rechercher (titre, id, origine…)") },
+                trailingIcon = {
+                    if (recherche.isNotEmpty()) {
+                        IconButton(onClick = { vm.setRecherche("") }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Effacer")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp, 0.dp, 12.dp, 10.dp)
             )
 
             if (liste.isEmpty()) {
@@ -228,24 +278,43 @@ fun ListeScreen(
                     Text(
                         if (recherche.isBlank()) "Aucune boucle dans ce filtre."
                         else "Aucun résultat pour « ${recherche.trim()} ».",
-                        style = MaterialTheme.typography.bodyLarge
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(14.dp, 0.dp, 14.dp, 110.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(liste, key = { it.id }) { boucle ->
-                        BoucleCard(boucle = boucle, onClick = { onOuvrirDetail(boucle.id) })
+                    items(liste, key = { it.id }) { b ->
+                        CarteBoucle(
+                            boucle = b,
+                            expanded = expandedId == b.id,
+                            derniereModif = dernieresModifs[b.id],
+                            vm = vm,
+                            onToggle = { expandedId = if (expandedId == b.id) null else b.id },
+                            onDemandeMouvement = { mouvementCible = b.id },
+                            onCloturer = { vm.cloturer(b.id); toast("Boucle ${b.id} clôturée") }
+                        )
                     }
                 }
             }
         }
     }
 
-    // Ré-import sur base déjà peuplée : choix Ajouter / Écraser avant écriture Room.
+    // Dialog Ajouter un mouvement.
+    mouvementCible?.let { cible ->
+        DialogMouvement(
+            onAnnuler = { mouvementCible = null },
+            onValider = { type, contenu ->
+                vm.ajouterMouvement(cible, type, contenu)
+                mouvementCible = null
+            }
+        )
+    }
+
+    // Choix d'import Ajouter / Écraser (base non vide).
     val enAttente = importEnAttente
     val err = erreurImport
     if (enAttente != null) {
@@ -255,19 +324,15 @@ fun ListeScreen(
             text = {
                 Text(
                     "La base contient déjà des données.\n\n" +
-                        "• Ajouter : n'insère que les boucles absentes. Tes boucles " +
-                        "actuelles, clôtures et mouvements ajoutés dans l'app sont conservés.\n\n" +
+                        "• Ajouter : n'insère que les boucles absentes. Tes boucles actuelles, " +
+                        "clôtures et mouvements ajoutés dans l'app sont conservés.\n\n" +
                         "• Écraser : vide tout (boucles + mouvements) et réimporte le fichier tel quel."
                 )
             },
-            confirmButton = {
-                TextButton(onClick = { vm.confirmerAjout() }) { Text("Ajouter") }
-            },
+            confirmButton = { TextButton(onClick = { vm.confirmerAjout() }) { Text("Ajouter") } },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { vm.confirmerEcrasement() }) {
-                        Text("Écraser", color = Color(0xFFB85042))
-                    }
+                    TextButton(onClick = { vm.confirmerEcrasement() }) { Text("Écraser", color = Alerte) }
                     TextButton(onClick = { vm.annulerImport() }) { Text("Annuler") }
                 }
             }
@@ -277,153 +342,353 @@ fun ListeScreen(
             onDismissRequest = { vm.effacerErreurImport() },
             title = { Text("Import impossible") },
             text = { Text(err) },
-            confirmButton = {
-                TextButton(onClick = { vm.effacerErreurImport() }) { Text("OK") }
-            }
+            confirmButton = { TextButton(onClick = { vm.effacerErreurImport() }) { Text("OK") } }
         )
     }
 }
 
-private data class Resume(val ouvertes: Int, val enRetard: Int, val bientot: Int)
-
 @Composable
-private fun BandeauResume(r: Resume) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+private fun StatTile(label: String, valeur: Int, couleur: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .padding(vertical = 12.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StatCell("Ouvertes", r.ouvertes, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-        StatCell("En retard", r.enRetard, Color(0xFFB85042), Modifier.weight(1f))
-        StatCell("≤ 7 jours", r.bientot, Color(0xFFC98A3D), Modifier.weight(1f))
+        Text(valeur.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = couleur)
+        Text(
+            label, fontSize = 10.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
 @Composable
-private fun StatCell(label: String, valeur: Int, couleur: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = valeur.toString(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = couleur
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ChipsFiltre(filtre: FiltreStatut, onChange: (FiltreStatut) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FiltreStatut.entries.forEach { f ->
-            FilterChip(
-                selected = filtre == f,
-                onClick = { onChange(f) },
-                label = { Text(f.libelle) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChampRecherche(
-    valeur: String,
-    onChange: (String) -> Unit,
-    onEffacer: () -> Unit
+private fun SegmentFiltre(
+    label: String, compte: Int, actif: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit
 ) {
-    OutlinedTextField(
-        value = valeur,
-        onValueChange = onChange,
-        singleLine = true,
-        label = { Text("Rechercher (titre, id, origine…)") },
-        trailingIcon = {
-            if (valeur.isNotEmpty()) {
-                IconButton(onClick = onEffacer) {
-                    Icon(Icons.Filled.Close, contentDescription = "Effacer la recherche")
-                }
-            }
-        },
-        modifier = Modifier
+    val fond = if (actif) Marine else MaterialTheme.colorScheme.surface
+    val texte = if (actif) Color.White else MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .background(fond, RoundedCornerShape(11.dp))
+            .then(if (actif) Modifier else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(11.dp)))
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = texte)
+        Spacer(Modifier.width(6.dp))
+        Text(compte.toString(), fontSize = 12.sp, color = texte.copy(alpha = 0.65f))
+    }
+}
+
+@Composable
+private fun CarteBoucle(
+    boucle: Boucle,
+    expanded: Boolean,
+    derniereModif: Long?,
+    vm: BoucleViewModel,
+    onToggle: () -> Unit,
+    onDemandeMouvement: () -> Unit,
+    onCloturer: () -> Unit
+) {
+    val ouverte = estOuverte(boucle)
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+
+    Column(
+        Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+    ) {
+        // En-tête (toujours visible, clic = plier/déplier).
+        Column(Modifier.clickable(onClick = onToggle).padding(18.dp, 17.dp, 18.dp, 17.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${boucle.id} · ${boucle.type}",
+                        fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        boucle.titre,
+                        fontSize = 15.5.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
+                }
+                BadgeStatut(boucle.statut)
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Modifié le ${formaterDate(derniereModif ?: boucle.creee)}",
+                    fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TexteEcheance(boucle, ouverte)
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RondIcone(Icons.Filled.Add, MaterialTheme.colorScheme.primary, "Ajouter un mouvement", onDemandeMouvement)
+                    if (ouverte) RondIcone(Icons.Filled.Check, Teal, "Clôturer", onCloturer)
+                }
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Replier" else "Déplier",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.rotate(rotation)
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(tween(300)) + fadeIn(tween(300)),
+            exit = shrinkVertically(tween(300)) + fadeOut(tween(200))
+        ) {
+            ContenuDeplie(boucle, ouverte, vm, onDemandeMouvement, onCloturer)
+        }
+    }
+}
+
+@Composable
+private fun TexteEcheance(boucle: Boucle, ouverte: Boolean) {
+    val j = boucle.echeance?.let { joursRestants(it) }
+    val couleur = when {
+        ouverte && j != null && j < 0 -> Alerte
+        ouverte && j != null && j <= 7 -> Warn
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val gras = ouverte && j != null && j <= 7
+    Text(
+        "Échéance ${formaterDate(boucle.echeance)}",
+        fontSize = 12.sp,
+        maxLines = 1,
+        color = couleur,
+        fontWeight = if (gras) FontWeight.SemiBold else FontWeight.Normal
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BoucleCard(boucle: Boucle, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+private fun ContenuDeplie(
+    boucle: Boucle,
+    ouverte: Boolean,
+    vm: BoucleViewModel,
+    onDemandeMouvement: () -> Unit,
+    onCloturer: () -> Unit
+) {
+    val mouvements by vm.observerMouvements(boucle.id).collectAsStateWithLifecycle(initialValue = emptyList())
+
+    Column(
+        Modifier.padding(18.dp, 0.dp, 18.dp, 17.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = boucle.titre,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ChampInfo("Origine", boucle.origine, Modifier.weight(1f))
+            ChampInfo("Tiers", boucle.tiers ?: "—", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ChampInfo("Créée le", formaterDate(boucle.creee), Modifier.weight(1f))
+            ChampInfo("Échéance", formaterDate(boucle.echeance), Modifier.weight(1f))
+        }
+
+        Encart("Preuve attendue", boucle.preuveAttendue, Teal, Teal.copy(alpha = 0.08f))
+        boucle.blocage?.let { Encart("Blocage", it, Warn, Warn.copy(alpha = 0.09f)) }
+
+        ChampInfo("Impact", boucle.impact)
+        boucle.defaut?.let { ChampInfo("Action par défaut", it) }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onDemandeMouvement,
+                shape = RoundedCornerShape(19.dp),
+                modifier = Modifier.weight(1f)
+            ) { Text("Ajouter un mouvement", fontSize = 12.5.sp) }
+            if (ouverte) {
+                Button(
+                    onClick = onCloturer,
+                    shape = RoundedCornerShape(19.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Marine, contentColor = Color.White),
                     modifier = Modifier.weight(1f)
-                )
-                BadgeStatut(boucle.statut)
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${boucle.id} · ${boucle.type}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Échéance : ${formaterDate(boucle.echeance)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                ) { Text("Clôturer", fontSize = 12.5.sp) }
             }
         }
+
+        if (mouvements.isNotEmpty()) {
+            val dernier = mouvements.first() // trié date DESC par le DAO
+            Column {
+                Text(
+                    "Dernier mouvement",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+                        .padding(12.dp, 10.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            dernier.type.replaceFirstChar { it.uppercase() },
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = couleurMouvement(dernier.type)
+                        )
+                        Text(
+                            formaterDateHeure(dernier.date),
+                            fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        dernier.contenu,
+                        fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    if (mouvements.size > 1) {
+                        Text(
+                            "+ ${mouvements.size - 1} mouvement(s) antérieur(s)",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun couleurMouvement(type: String): Color = when (type) {
+    "preuve" -> Teal
+    "defaut" -> Warn
+    else -> Marine
+}
+
+@Composable
+private fun ChampInfo(label: String, valeur: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            label.uppercase(),
+            fontSize = 10.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            valeur, fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun Encart(label: String, valeur: String, couleurLabel: Color, fond: Color) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(fond, RoundedCornerShape(10.dp))
+            .padding(12.dp, 10.dp)
+    ) {
+        Text(label.uppercase(), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = couleurLabel)
+        Text(
+            valeur, fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 3.dp)
+        )
+    }
+}
+
+@Composable
+private fun RondIcone(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    couleur: Color,
+    description: String,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(34.dp)
+            .border(1.5.dp, couleur, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icone, contentDescription = description, tint = couleur, modifier = Modifier.size(17.dp))
     }
 }
 
 @Composable
 fun BadgeStatut(statut: String) {
-    Surface(
-        color = couleurStatut(statut),
-        shape = RoundedCornerShape(50),
-        contentColor = MaterialTheme.colorScheme.onPrimary
-    ) {
+    Surface(color = couleurStatut(statut), shape = RoundedCornerShape(50), contentColor = Color.White) {
         Text(
-            text = libelleStatut(statut),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            libelleStatut(statut),
+            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
         )
     }
+}
+
+@Composable
+private fun DialogMouvement(
+    onAnnuler: () -> Unit,
+    onValider: (type: String, contenu: String) -> Unit
+) {
+    val types = listOf("preuve" to "Preuve", "declaration" to "Déclaration", "defaut" to "Défaut")
+    var type by remember { mutableStateOf("preuve") }
+    var contenu by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onAnnuler,
+        title = { Text("Ajouter un mouvement") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    types.forEach { (valeur, libelle) ->
+                        val actif = type == valeur
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .background(if (actif) Teal else Color.Transparent, RoundedCornerShape(16.dp))
+                                .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)))
+                                .clickable { type = valeur },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                libelle, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (actif) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = contenu,
+                    onValueChange = { contenu = it },
+                    placeholder = { Text("Contenu") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onValider(type, contenu.trim()) }, enabled = contenu.isNotBlank()) {
+                Text("Valider")
+            }
+        },
+        dismissButton = { TextButton(onClick = onAnnuler) { Text("Annuler") } }
+    )
 }

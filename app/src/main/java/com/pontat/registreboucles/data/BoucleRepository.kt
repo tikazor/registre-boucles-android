@@ -23,6 +23,9 @@ class BoucleRepository(
     fun observerMouvements(boucleId: String): Flow<List<Mouvement>> =
         dao.observerMouvements(boucleId)
 
+    fun observerDernieresModifs(): Flow<List<DerniereModifRow>> =
+        dao.observerDernieresModifs()
+
     suspend fun obtenir(id: String): Boucle? = dao.obtenir(id)
 
     suspend fun estVide(): Boolean = dao.compter() == 0
@@ -110,5 +113,15 @@ class BoucleRepository(
 
     private suspend fun rafraichirWidget() {
         BoucleWidget().updateAll(appContext)
+    }
+
+    // ── Préférence de thème (mode sombre) ──
+    private val prefs
+        get() = appContext.getSharedPreferences("registre-prefs", Context.MODE_PRIVATE)
+
+    fun lireModeSombre(): Boolean = prefs.getBoolean("mode_sombre", false)
+
+    fun ecrireModeSombre(actif: Boolean) {
+        prefs.edit().putBoolean("mode_sombre", actif).apply()
     }
 }

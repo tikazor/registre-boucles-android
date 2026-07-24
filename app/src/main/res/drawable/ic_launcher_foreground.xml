@@ -4,15 +4,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Motif « boucle » : deux anneaux entrelacés. -->
+    <!-- Deux anneaux entrelacés (marine + sarcelle). -->
     <path
-        android:strokeColor="#8A5A44"
-        android:strokeWidth="6"
+        android:strokeColor="#1E3A5F"
+        android:strokeWidth="7"
         android:fillColor="#00000000"
         android:pathData="M46,54 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" />
     <path
-        android:strokeColor="#6B8F71"
-        android:strokeWidth="6"
+        android:strokeColor="#2E7D74"
+        android:strokeWidth="7"
         android:fillColor="#00000000"
         android:pathData="M62,54 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" />
 </vector>

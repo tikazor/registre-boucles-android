@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,16 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     private val _filtreStatut = MutableStateFlow(FiltreStatut.TOUTES)
     val filtreStatut: StateFlow<FiltreStatut> = _filtreStatut.asStateFlow()
+
+    // Mode sombre — choix explicite persisté (SharedPreferences via le repository).
+    private val _modeSombre = MutableStateFlow(repository.lireModeSombre())
+    val modeSombre: StateFlow<Boolean> = _modeSombre.asStateFlow()
+
+    fun basculerModeSombre() {
+        val nouveau = !_modeSombre.value
+        _modeSombre.value = nouveau
+        repository.ecrireModeSombre(nouveau)
+    }
 
     fun setRecherche(q: String) {
         _recherche.value = q
@@ -57,6 +68,11 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     val boucles: StateFlow<List<Boucle>> = repository.observerToutes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Map boucleId -> date du dernier mouvement (étiquette « Modifié le »). */
+    val dernieresModifs: StateFlow<Map<String, Long>> = repository.observerDernieresModifs()
+        .map { rows -> rows.associate { it.boucleId to it.derniere } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {
         viewModelScope.launch {

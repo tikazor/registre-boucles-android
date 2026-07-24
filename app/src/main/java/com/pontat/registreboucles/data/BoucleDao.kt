@@ -8,6 +8,9 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** Dernière date de mouvement par boucle (pour l'étiquette « Modifié le »). */
+data class DerniereModifRow(val boucleId: String, val derniere: Long)
+
 @Dao
 interface BoucleDao {
 
@@ -70,6 +73,9 @@ interface BoucleDao {
 
     @Query("SELECT * FROM mouvements")
     suspend fun tousLesMouvements(): List<Mouvement>
+
+    @Query("SELECT boucleId, MAX(date) AS derniere FROM mouvements GROUP BY boucleId")
+    fun observerDernieresModifs(): Flow<List<DerniereModifRow>>
 
     @Insert
     suspend fun insererMouvement(mouvement: Mouvement)
