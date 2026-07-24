@@ -171,7 +171,7 @@ fun ListeScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        if (uri != null) vm.exporter(uri) { ok -> toast(if (ok) "Export terminé" else "Échec de l'export") }
+        if (uri != null) vm.exporter(uri) { erreur -> toast(erreur ?: "Export terminé") }
     }
 
     val compteurs = remember(boucles) {

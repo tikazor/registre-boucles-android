@@ -149,22 +149,25 @@ class BoucleRepository(
     }
 
     /**
-     * Sérialise l'état courant (boucles + mouvements) au schéma d'import et
-     * l'écrit dans l'URI fourni par ACTION_CREATE_DOCUMENT. Renvoie le succès.
+     * Sérialise l'état courant (format canonique complet) et l'écrit dans l'URI
+     * fourni par ACTION_CREATE_DOCUMENT. Renvoie null si succès, sinon un
+     * message d'erreur réel (jamais d'échec silencieux).
      */
-    suspend fun exporterVers(uri: Uri): Boolean = try {
-        val contenu = JsonExporter.serialiser(
-            dao.toutesLesBoucles(),
-            dao.tousLesMouvements(),
-            dao.tousLesJournaux()
-        )
-        val ok = appContext.contentResolver.openOutputStream(uri)?.use { out ->
-            out.write(contenu.toByteArray(Charsets.UTF_8))
-            true
-        } ?: false
-        ok
-    } catch (e: Exception) {
-        false
+    suspend fun exporterVers(uri: Uri): String? {
+        return try {
+            val contenu = JsonExporter.serialiser(
+                dao.toutesLesBoucles(),
+                dao.tousLesMouvements(),
+                dao.tousLesJournaux()
+            )
+            val flux = appContext.contentResolver.openOutputStream(uri)
+                ?: return "Impossible d'ouvrir le fichier de destination."
+            flux.use { it.write(contenu.toByteArray(Charsets.UTF_8)) }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Export impossible", e)
+            "Export impossible : ${e.message ?: e.javaClass.simpleName}"
+        }
     }
 
     /**

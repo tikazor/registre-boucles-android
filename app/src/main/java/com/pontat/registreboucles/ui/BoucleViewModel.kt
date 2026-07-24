@@ -289,8 +289,11 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         _importEnAttente.value = null
     }
 
-    /** Exporte l'état courant vers l'URI choisi (ACTION_CREATE_DOCUMENT). */
-    fun exporter(uri: Uri, onFini: (Boolean) -> Unit) {
+    /**
+     * Exporte l'état courant vers l'URI choisi (ACTION_CREATE_DOCUMENT).
+     * [onFini] reçoit null si succès, sinon un message d'erreur réel.
+     */
+    fun exporter(uri: Uri, onFini: (erreur: String?) -> Unit) {
         viewModelScope.launch { onFini(repository.exporterVers(uri)) }
     }
 
