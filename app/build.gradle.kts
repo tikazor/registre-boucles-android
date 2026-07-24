@@ -19,8 +19,10 @@ android {
         applicationId = "com.pontat.registreboucles"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Injectés par la CI (-PversionCode=<run> / -PversionName=1.1.<run>).
+        // Valeurs de repli pour les builds locaux.
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "1.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -32,6 +34,11 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+
+    // On mesure le lint d'abord (rapport en artifact CI) sans bloquer la release.
+    lint {
+        abortOnError = false
     }
 
     compileOptions {

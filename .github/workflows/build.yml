@@ -25,6 +25,25 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x gradlew
 
+      # Barrière : les tests unitaires doivent passer AVANT tout build/release.
+      - name: Run unit tests
+        run: ./gradlew test
+
+      # Lint mesuré mais NON bloquant sur ce lot (abortOnError = false) ;
+      # le rapport est publié en artifact pour analyse.
+      - name: Lint (release)
+        run: ./gradlew lintRelease
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-release-report
+          path: |
+            app/build/reports/lint-results-release.html
+            app/build/reports/lint-results-release.xml
+          if-no-files-found: warn
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > release-keystore.jks
 
@@ -34,6 +53,8 @@ jobs:
           KEY_PASS: ${{ secrets.KEY_PASS }}
         run: |
           ./gradlew assembleRelease \
+            -PversionCode=${{ github.run_number }} \
+            -PversionName=1.1.${{ github.run_number }} \
             -Pandroid.injected.signing.store.file=$(pwd)/release-keystore.jks \
             -Pandroid.injected.signing.store.password=$KEYSTORE_PASS \
             -Pandroid.injected.signing.key.alias=registre-release \
