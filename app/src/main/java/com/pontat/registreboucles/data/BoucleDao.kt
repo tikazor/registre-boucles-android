@@ -80,6 +80,17 @@ interface BoucleDao {
     @Query("SELECT boucleId, MAX(date) AS derniere FROM mouvements GROUP BY boucleId")
     suspend fun dernieresModifsListe(): List<DerniereModifRow>
 
+    // --- Journal de clôture ---
+
+    @Insert
+    suspend fun insererJournal(journal: Journal): Long
+
+    @Query("SELECT * FROM journaux WHERE boucleId = :boucleId ORDER BY date DESC")
+    fun observerJournaux(boucleId: String): Flow<List<Journal>>
+
+    @Query("SELECT * FROM journaux")
+    suspend fun tousLesJournaux(): List<Journal>
+
     @Insert
     suspend fun insererMouvement(mouvement: Mouvement)
 

@@ -1,17 +1,22 @@
 package com.pontat.registreboucles.ui
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.pontat.registreboucles.ui.screens.ConfigScreen
 import com.pontat.registreboucles.ui.screens.DebugScreen
+import com.pontat.registreboucles.ui.screens.JournalScreen
 import com.pontat.registreboucles.ui.screens.ListeScreen
 
 object Routes {
     const val LISTE = "liste"
     const val DEBUG = "debug"
     const val CONFIG = "config"
+    const val JOURNAL = "journal/{id}"
+    fun journal(id: String) = "journal/$id"
 }
 
 @Composable
@@ -24,7 +29,8 @@ fun RegistreNavHost(vm: BoucleViewModel) {
             ListeScreen(
                 vm = vm,
                 onOuvrirDebug = { nav.navigate(Routes.DEBUG) },
-                onOuvrirConfig = { nav.navigate(Routes.CONFIG) }
+                onOuvrirConfig = { nav.navigate(Routes.CONFIG) },
+                onOuvrirJournal = { id -> nav.navigate(Routes.journal(id)) }
             )
         }
         composable(Routes.DEBUG) {
@@ -32,6 +38,16 @@ fun RegistreNavHost(vm: BoucleViewModel) {
         }
         composable(Routes.CONFIG) {
             ConfigScreen(vm = vm, onRetour = { nav.popBackStack() })
+        }
+        composable(
+            route = Routes.JOURNAL,
+            arguments = listOf(navArgument("id") { type = NavType.StringType })
+        ) { entry ->
+            JournalScreen(
+                vm = vm,
+                boucleId = entry.arguments?.getString("id").orEmpty(),
+                onRetour = { nav.popBackStack() }
+            )
         }
     }
 }

@@ -3,10 +3,12 @@ package com.pontat.registreboucles.data
 import android.content.Context
 import android.net.Uri
 import androidx.glance.appwidget.updateAll
+import com.pontat.registreboucles.importer.BackupExporter
 import com.pontat.registreboucles.importer.JsonExporter
 import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
+import java.io.File
 
 /**
  * Point d'accès unique aux données. Toute écriture sur la table `boucles`
@@ -48,12 +50,25 @@ class BoucleRepository(
         rafraichirWidget()
     }
 
-    /** Passe la boucle au statut `fermee`. */
-    suspend fun cloturer(id: String) {
-        val boucle = dao.obtenir(id) ?: return
-        dao.mettreAJour(boucle.copy(statut = "fermee"))
+    // Adaptateur DAO pour la logique de clôture (testée à part dans executerCloture).
+    private val clotureStore = object : ClotureStore {
+        override suspend fun insererJournal(journal: Journal) { dao.insererJournal(journal) }
+        override suspend fun obtenirBoucle(id: String): Boucle? = dao.obtenir(id)
+        override suspend fun mettreAJourBoucle(boucle: Boucle) { dao.mettreAJour(boucle) }
+    }
+
+    /**
+     * UNIQUE clôture d'une boucle. Exige une entrée Journal (type + texte) : la
+     * transition vers `fermee` est indissociable de la création du journal
+     * (cf. [executerCloture]). Déclenche ensuite un backup versionné.
+     */
+    suspend fun cloturer(id: String, type: JournalType, texte: String) {
+        executerCloture(clotureStore, id, type, texte, System.currentTimeMillis())
+        creerBackup()          // backup complet à chaque clôture
         rafraichirWidget()
     }
+
+    fun observerJournaux(boucleId: String): Flow<List<Journal>> = dao.observerJournaux(boucleId)
 
     /**
      * Ajoute un mouvement. N'affecte pas la table `boucles`, donc pas de
@@ -104,6 +119,33 @@ class BoucleRepository(
         ok
     } catch (e: Exception) {
         false
+    }
+
+    /**
+     * Backup local versionné complet (Boucle + Journal). Stockage app-scoped
+     * externe (aucune permission runtime). Rotation : garde les 10 plus récents.
+     * Renvoie le fichier créé (ou null si écriture impossible).
+     */
+    suspend fun creerBackup(): File? {
+        val contenu = BackupExporter.serialiser(
+            dao.toutesLesBoucles(),
+            dao.tousLesMouvements(),
+            dao.tousLesJournaux()
+        )
+        val dossier = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
+        val fichier = File(dossier, "boucles-backup-${System.currentTimeMillis()}.json")
+        return try {
+            fichier.writeText(contenu)
+            // Rotation : le timestamp à largeur fixe rend le tri par nom chronologique.
+            dossier.listFiles { f ->
+                f.name.startsWith("boucles-backup-") && f.name.endsWith(".json")
+            }?.sortedByDescending { it.name }
+                ?.drop(10)
+                ?.forEach { it.delete() }
+            fichier
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** Statistiques pour le widget. */

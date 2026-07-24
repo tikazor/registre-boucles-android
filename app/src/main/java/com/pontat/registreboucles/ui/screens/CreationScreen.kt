@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.formaterDate
 
@@ -57,7 +58,7 @@ fun CreationForm(
     var preuveAttendue by remember { mutableStateOf("") }
     var impact by remember { mutableStateOf("") }
     var tiers by remember { mutableStateOf("") }
-    var milieu by remember { mutableStateOf("") }
+    var milieu by remember { mutableStateOf<Milieu?>(null) }
     var echeance by remember { mutableStateOf<Long?>(null) }
     var datePickerOuvert by remember { mutableStateOf(false) }
 
@@ -90,7 +91,13 @@ fun CreationForm(
             ChampListe("Type *", type, options.types, Modifier.weight(1f)) { type = it }
             ChampListe("Tiers", tiers, options.tiers, Modifier.weight(1f), avecVide = true) { tiers = it }
         }
-        ChampListe("Milieu", milieu, options.milieux, Modifier.fillMaxWidth(), avecVide = true) { milieu = it }
+        ChampListe(
+            "Milieu",
+            milieu?.libelle ?: "",
+            Milieu.entries.map { it.libelle },
+            Modifier.fillMaxWidth(),
+            avecVide = true
+        ) { choisi -> milieu = Milieu.entries.firstOrNull { it.libelle == choisi } }
 
         Champ("Origine *", origine, singleLine = true) { origine = it }
         Champ("Preuve attendue *", preuveAttendue, singleLine = false, minLines = 2) { preuveAttendue = it }
@@ -120,7 +127,7 @@ fun CreationForm(
                     impact = impact.trim(),
                     echeance = echeance,
                     tiers = tiers.ifBlank { null },
-                    milieu = milieu.ifBlank { null },
+                    milieu = milieu?.name,
                     onCree = { onFerme() }
                 )
             },

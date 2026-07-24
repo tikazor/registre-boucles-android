@@ -1,5 +1,6 @@
 package com.pontat.registreboucles.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pontat.registreboucles.data.ListeOptions
@@ -41,17 +44,16 @@ fun ConfigScreen(
     vm: BoucleViewModel,
     onRetour: () -> Unit
 ) {
+    val context = LocalContext.current
     val depart = remember { vm.options.value }
     val types = remember { mutableStateListOf(*depart.types.toTypedArray()) }
     val tiers = remember { mutableStateListOf(*depart.tiers.toTypedArray()) }
-    val milieux = remember { mutableStateListOf(*depart.milieux.toTypedArray()) }
 
     fun persister() {
         vm.majOptions(
             ListeOptions(
                 types = types.map { it.trim() }.filter { it.isNotBlank() },
-                tiers = tiers.map { it.trim() }.filter { it.isNotBlank() },
-                milieux = milieux.map { it.trim() }.filter { it.isNotBlank() }
+                tiers = tiers.map { it.trim() }.filter { it.isNotBlank() }
             )
         )
     }
@@ -59,7 +61,7 @@ fun ConfigScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Configuration") },
+                title = { Text("Réglages") },
                 navigationIcon = {
                     IconButton(onClick = onRetour) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
@@ -82,7 +84,7 @@ fun ConfigScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                "Modifie les valeurs proposées dans les listes à choix unique du formulaire.",
+                "Valeurs proposées dans les listes à choix unique du formulaire.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -90,7 +92,29 @@ fun ConfigScreen(
             HorizontalDivider()
             Section("Tiers", tiers, ::persister)
             HorizontalDivider()
-            Section("Milieu", milieux, ::persister)
+
+            // Sauvegarde locale versionnée.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sauvegarde", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Un backup complet (boucles + journaux) est créé automatiquement à " +
+                        "chaque clôture. Les 10 plus récents sont conservés, dans le stockage " +
+                        "de l'app (aucune permission requise).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = {
+                    vm.sauvegarderManuel { nom ->
+                        Toast.makeText(
+                            context,
+                            if (nom != null) "Sauvegarde créée : $nom" else "Échec de la sauvegarde",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }) {
+                    Text("Sauvegarder maintenant")
+                }
+            }
         }
     }
 }

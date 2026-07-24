@@ -18,35 +18,34 @@ object JsonExporter {
         encodeDefaults = true
     }
 
-    fun serialiser(boucles: List<Boucle>, mouvements: List<Mouvement>): String {
+    fun serialiser(boucles: List<Boucle>, mouvements: List<Mouvement>): String =
+        json.encodeToString(ExportRacine.serializer(), ExportRacine(mapBoucles(boucles, mouvements)))
+
+    /** Mapping partagé Boucle(+mouvements) -> BoucleJson (réutilisé par le backup). */
+    fun mapBoucles(boucles: List<Boucle>, mouvements: List<Mouvement>): List<BoucleJson> {
         val mouvParBoucle = mouvements.groupBy { it.boucleId }
-
-        val racine = ExportRacine(
-            boucles = boucles.map { b ->
-                BoucleJson(
-                    id = b.id,
-                    type = b.type,
-                    titre = b.titre,
-                    origine = b.origine,
-                    creee = iso(b.creee),
-                    echeance = b.echeance?.let { iso(it) },
-                    // Entité String? -> booléen : présent (non null) = true.
-                    tiers = b.tiers != null,
-                    preuveAttendue = b.preuveAttendue,
-                    blocage = b.blocage,
-                    impact = b.impact,
-                    defaut = b.defaut,
-                    statut = b.statut,
-                    milieu = b.milieu,
-                    mouvements = (mouvParBoucle[b.id] ?: emptyList())
-                        .sortedBy { it.date }
-                        .map { MouvementJson(date = iso(it.date), note = it.contenu) }
-                )
-            }
-        )
-
-        return json.encodeToString(ExportRacine.serializer(), racine)
+        return boucles.map { b ->
+            BoucleJson(
+                id = b.id,
+                type = b.type,
+                titre = b.titre,
+                origine = b.origine,
+                creee = iso(b.creee),
+                echeance = b.echeance?.let { iso(it) },
+                // Entité String? -> booléen : présent (non null) = true.
+                tiers = b.tiers != null,
+                preuveAttendue = b.preuveAttendue,
+                blocage = b.blocage,
+                impact = b.impact,
+                defaut = b.defaut,
+                statut = b.statut,
+                milieu = b.milieu,
+                mouvements = (mouvParBoucle[b.id] ?: emptyList())
+                    .sortedBy { it.date }
+                    .map { MouvementJson(date = iso(it.date), note = it.contenu) }
+            )
+        }
     }
 
-    private fun iso(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).toString()
+    fun iso(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).toString()
 }

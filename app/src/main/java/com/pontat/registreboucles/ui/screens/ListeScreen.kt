@@ -16,6 +16,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,6 +83,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.data.Boucle
+import com.pontat.registreboucles.data.JournalType
+import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
@@ -124,7 +128,8 @@ private data class Compteurs(
 fun ListeScreen(
     vm: BoucleViewModel,
     onOuvrirDebug: () -> Unit,
-    onOuvrirConfig: () -> Unit
+    onOuvrirConfig: () -> Unit,
+    onOuvrirJournal: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -139,9 +144,12 @@ fun ListeScreen(
     val cibleWidget by vm.cibleWidget.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
+    val filtreMilieu by vm.filtreMilieu.collectAsStateWithLifecycle()
+
     var menuOuvert by remember { mutableStateOf(false) }
     var expandedId by remember { mutableStateOf<String?>(null) }
     var mouvementCible by remember { mutableStateOf<String?>(null) }
+    var clotureCible by remember { mutableStateOf<String?>(null) }
 
     val toast: (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
 
@@ -173,7 +181,7 @@ fun ListeScreen(
             fermees = boucles.size - ouv.size
         )
     }
-    val liste = remember(boucles, filtre, recherche) {
+    val liste = remember(boucles, filtre, recherche, filtreMilieu) {
         boucles
             .filter {
                 when (filtre) {
@@ -182,6 +190,7 @@ fun ListeScreen(
                     FiltreStatut.FERMEES -> !estOuverte(it)
                 }
             }
+            .filter { filtreMilieu == null || Milieu.depuis(it.milieu) == filtreMilieu }
             .filter { correspond(it, recherche) }
     }
 
@@ -299,6 +308,20 @@ fun ListeScreen(
                 modifier = Modifier.fillMaxWidth().padding(12.dp, 0.dp, 12.dp, 10.dp)
             )
 
+            // Filtre par milieu (défilable).
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(12.dp, 0.dp, 12.dp, 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PuceMilieu("Tous", filtreMilieu == null) { vm.setFiltreMilieu(null) }
+                Milieu.entries.forEach { m ->
+                    PuceMilieu(m.libelle, filtreMilieu == m) { vm.setFiltreMilieu(m) }
+                }
+            }
+
             if (liste.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -322,7 +345,8 @@ fun ListeScreen(
                             vm = vm,
                             onToggle = { expandedId = if (expandedId == b.id) null else b.id },
                             onDemandeMouvement = { mouvementCible = b.id },
-                            onCloturer = { vm.cloturer(b.id); toast("Boucle ${b.id} clôturée") }
+                            onCloturer = { clotureCible = b.id },
+                            onOuvrirJournal = { onOuvrirJournal(b.id) }
                         )
                     }
                 }
@@ -337,6 +361,18 @@ fun ListeScreen(
             onValider = { type, contenu ->
                 vm.ajouterMouvement(cible, type, contenu)
                 mouvementCible = null
+            }
+        )
+    }
+
+    // Dialog de clôture : EXIGE une entrée journal (type + texte) avant de fermer.
+    clotureCible?.let { cible ->
+        DialogCloture(
+            onAnnuler = { clotureCible = null },
+            onValider = { type, texte ->
+                vm.cloturer(cible, type, texte)
+                clotureCible = null
+                toast("Boucle $cible clôturée")
             }
         )
     }
@@ -438,7 +474,8 @@ private fun CarteBoucle(
     vm: BoucleViewModel,
     onToggle: () -> Unit,
     onDemandeMouvement: () -> Unit,
-    onCloturer: () -> Unit
+    onCloturer: () -> Unit,
+    onOuvrirJournal: () -> Unit
 ) {
     val ouverte = estOuverte(boucle)
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
@@ -505,7 +542,7 @@ private fun CarteBoucle(
             enter = expandVertically(tween(300)) + fadeIn(tween(300)),
             exit = shrinkVertically(tween(300)) + fadeOut(tween(200))
         ) {
-            ContenuDeplie(boucle, ouverte, vm, onDemandeMouvement, onCloturer)
+            ContenuDeplie(boucle, ouverte, vm, onDemandeMouvement, onCloturer, onOuvrirJournal)
         }
     }
 }
@@ -534,7 +571,8 @@ private fun ContenuDeplie(
     ouverte: Boolean,
     vm: BoucleViewModel,
     onDemandeMouvement: () -> Unit,
-    onCloturer: () -> Unit
+    onCloturer: () -> Unit,
+    onOuvrirJournal: () -> Unit
 ) {
     val mouvements by vm.observerMouvements(boucle.id).collectAsStateWithLifecycle(initialValue = emptyList())
 
@@ -553,7 +591,7 @@ private fun ContenuDeplie(
             ChampInfo("Échéance", formaterDate(boucle.echeance), Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            ChampInfo("Milieu", boucle.milieu ?: "—", Modifier.weight(1f))
+            ChampInfo("Milieu", Milieu.depuis(boucle.milieu)?.libelle ?: "—", Modifier.weight(1f))
             ChampInfo("Statut", libelleStatut(boucle.statut), Modifier.weight(1f))
         }
 
@@ -620,6 +658,9 @@ private fun ContenuDeplie(
                 }
             }
         }
+
+        // Accès à l'historique des clôtures (journal) de cette boucle.
+        TextButton(onClick = onOuvrirJournal) { Text("Journal des clôtures") }
     }
 }
 
@@ -736,6 +777,77 @@ private fun DialogMouvement(
         confirmButton = {
             TextButton(onClick = { onValider(type, contenu.trim()) }, enabled = contenu.isNotBlank()) {
                 Text("Valider")
+            }
+        },
+        dismissButton = { TextButton(onClick = onAnnuler) { Text("Annuler") } }
+    )
+}
+
+@Composable
+private fun PuceMilieu(label: String, actif: Boolean, onClick: () -> Unit) {
+    val fond = if (actif) Marine else MaterialTheme.colorScheme.surface
+    val texte = if (actif) Color.White else MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .height(34.dp)
+            .background(fond, RoundedCornerShape(17.dp))
+            .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(17.dp)))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = texte)
+    }
+}
+
+/** Clôture : choix du type de journal (Preuve/Déclaration/Défaut) + texte OBLIGATOIRE. */
+@Composable
+private fun DialogCloture(
+    onAnnuler: () -> Unit,
+    onValider: (type: JournalType, texte: String) -> Unit
+) {
+    var type by remember { mutableStateOf(JournalType.PREUVE) }
+    var texte by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onAnnuler,
+        title = { Text("Clôturer — journal requis") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Une clôture exige une entrée de journal.",
+                    fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    JournalType.entries.forEach { t ->
+                        val actif = type == t
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .background(if (actif) Teal else Color.Transparent, RoundedCornerShape(16.dp))
+                                .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)))
+                                .clickable { type = t },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                t.libelle, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (actif) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = texte,
+                    onValueChange = { texte = it },
+                    placeholder = { Text("Texte du journal (preuve, déclaration…)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onValider(type, texte.trim()) }, enabled = texte.isNotBlank()) {
+                Text("Clôturer")
             }
         },
         dismissButton = { TextButton(onClick = onAnnuler) { Text("Annuler") } }

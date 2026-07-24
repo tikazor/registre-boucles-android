@@ -43,6 +43,7 @@ import com.pontat.registreboucles.R
 import com.pontat.registreboucles.RegistreApplication
 import com.pontat.registreboucles.data.AppDatabase
 import com.pontat.registreboucles.data.Boucle
+import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.ui.couleurStatut
 import com.pontat.registreboucles.ui.libelleStatut
 import com.pontat.registreboucles.ui.theme.Alerte
@@ -259,7 +260,8 @@ class ClotureActionCallback : ActionCallback {
     ) {
         val id = parameters[boucleIdParam] ?: return
         val repository = (context.applicationContext as RegistreApplication).repository
-        repository.cloturer(id)
+        // La clôture EXIGE un journal : depuis le widget, on consigne une déclaration par défaut.
+        repository.cloturer(id, JournalType.DECLARATION, "Clôturé depuis le widget")
         BoucleWidget().update(context, glanceId)
     }
 }

@@ -6,7 +6,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
+import com.pontat.registreboucles.data.Journal
+import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.ListeOptions
+import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
@@ -156,8 +159,24 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         }
     }
 
-    fun cloturer(id: String) {
-        viewModelScope.launch { repository.cloturer(id) }
+    /** Clôture EXIGEANT une entrée journal (type + texte). */
+    fun cloturer(id: String, type: JournalType, texte: String) {
+        viewModelScope.launch { repository.cloturer(id, type, texte) }
+    }
+
+    fun observerJournaux(boucleId: String): Flow<List<Journal>> = repository.observerJournaux(boucleId)
+
+    /** Backup manuel (depuis Réglages). Renvoie le nom du fichier créé (ou null). */
+    fun sauvegarderManuel(onFait: (String?) -> Unit) {
+        viewModelScope.launch { onFait(repository.creerBackup()?.name) }
+    }
+
+    // Filtre par milieu de l'écran Liste (persiste en navigation, comme les autres filtres).
+    private val _filtreMilieu = MutableStateFlow<Milieu?>(null)
+    val filtreMilieu: StateFlow<Milieu?> = _filtreMilieu.asStateFlow()
+
+    fun setFiltreMilieu(milieu: Milieu?) {
+        _filtreMilieu.value = milieu
     }
 
     /**

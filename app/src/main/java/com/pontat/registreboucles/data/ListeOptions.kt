@@ -9,6 +9,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ListeOptions(
     val types: List<String> = listOf("ACTION", "DECISION"),
-    val tiers: List<String> = listOf("Non", "Oui"),
-    val milieux: List<String> = listOf("Professionnel", "Personnel", "Projet", "Autre")
+    val tiers: List<String> = listOf("Non", "Oui")
+    // `milieu` n'est plus configurable : c'est désormais un enum fixe (Milieu).
 )
