@@ -121,7 +121,8 @@ private data class Compteurs(
 @Composable
 fun ListeScreen(
     vm: BoucleViewModel,
-    onOuvrirDebug: () -> Unit
+    onOuvrirDebug: () -> Unit,
+    onOuvrirConfig: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -212,6 +213,10 @@ fun ListeScreen(
                                 val jour = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                                 exportLauncher.launch("boucles-export-$jour.json")
                             }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Configuration") },
+                            onClick = { menuOuvert = false; onOuvrirConfig() }
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
@@ -530,6 +535,10 @@ private fun ContenuDeplie(
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             ChampInfo("Créée le", formaterDate(boucle.creee), Modifier.weight(1f))
             ChampInfo("Échéance", formaterDate(boucle.echeance), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ChampInfo("Milieu", boucle.milieu ?: "—", Modifier.weight(1f))
+            ChampInfo("Statut", libelleStatut(boucle.statut), Modifier.weight(1f))
         }
 
         Encart("Preuve attendue", boucle.preuveAttendue, Teal, Teal.copy(alpha = 0.08f))

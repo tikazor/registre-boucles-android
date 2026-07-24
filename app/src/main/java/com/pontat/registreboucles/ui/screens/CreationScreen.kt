@@ -12,10 +12,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,12 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.formaterDate
 
 /**
- * Contenu du formulaire de création, présenté dans une bottom sheet.
- * [onFerme] est appelé après validation (la sheet se referme).
+ * Formulaire de création, présenté dans une bottom sheet. [onFerme] est appelé
+ * après validation (la sheet se referme). Type / Tiers / Milieu sont des listes
+ * à choix unique dont les valeurs viennent de la configuration.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,12 +49,15 @@ fun CreationForm(
     vm: BoucleViewModel,
     onFerme: () -> Unit
 ) {
+    val options by vm.options.collectAsStateWithLifecycle()
+
     var titre by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
     var origine by remember { mutableStateOf("") }
     var preuveAttendue by remember { mutableStateOf("") }
     var impact by remember { mutableStateOf("") }
     var tiers by remember { mutableStateOf("") }
+    var milieu by remember { mutableStateOf("") }
     var echeance by remember { mutableStateOf<Long?>(null) }
     var datePickerOuvert by remember { mutableStateOf(false) }
 
@@ -62,7 +71,6 @@ fun CreationForm(
             .padding(16.dp, 0.dp, 16.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // En-tête : titre + croix de fermeture.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Nouvelle boucle",
@@ -75,23 +83,19 @@ fun CreationForm(
             }
         }
 
-        // Titre (pleine largeur).
         Champ("Titre *", titre, singleLine = true) { titre = it }
 
-        // Type + Tiers sur une même ligne (champs courts).
+        // Listes à choix unique (valeurs configurables).
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Champ("Type *", type, Modifier.weight(1f), singleLine = true) { type = it }
-            Champ("Tiers", tiers, Modifier.weight(1f), singleLine = true) { tiers = it }
+            ChampListe("Type *", type, options.types, Modifier.weight(1f)) { type = it }
+            ChampListe("Tiers", tiers, options.tiers, Modifier.weight(1f), avecVide = true) { tiers = it }
         }
+        ChampListe("Milieu", milieu, options.milieux, Modifier.fillMaxWidth(), avecVide = true) { milieu = it }
 
-        // Origine (pleine largeur).
         Champ("Origine *", origine, singleLine = true) { origine = it }
-
-        // Preuve + Impact (textarea compactes, 2 lignes).
         Champ("Preuve attendue *", preuveAttendue, singleLine = false, minLines = 2) { preuveAttendue = it }
         Champ("Impact *", impact, singleLine = false, minLines = 2) { impact = it }
 
-        // Échéance sur une seule ligne.
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -115,7 +119,8 @@ fun CreationForm(
                     preuveAttendue = preuveAttendue.trim(),
                     impact = impact.trim(),
                     echeance = echeance,
-                    tiers = tiers.trim().ifBlank { null },
+                    tiers = tiers.ifBlank { null },
+                    milieu = milieu.ifBlank { null },
                     onCree = { onFerme() }
                 )
             },
@@ -166,4 +171,50 @@ private fun Champ(
         minLines = minLines,
         modifier = modifier
     )
+}
+
+/** Liste déroulante à choix unique. [avecVide] ajoute une entrée « (aucun) ». */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChampListe(
+    label: String,
+    valeur: String,
+    options: List<String>,
+    modifier: Modifier = Modifier,
+    avecVide: Boolean = false,
+    onChoisir: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val choix = options.filter { it.isNotBlank() }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = valeur,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (avecVide) {
+                DropdownMenuItem(
+                    text = { Text("(aucun)") },
+                    onClick = { onChoisir(""); expanded = false }
+                )
+            }
+            choix.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = { onChoisir(opt); expanded = false }
+                )
+            }
+        }
+    }
 }

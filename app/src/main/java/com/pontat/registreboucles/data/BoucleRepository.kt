@@ -6,6 +6,7 @@ import androidx.glance.appwidget.updateAll
 import com.pontat.registreboucles.importer.JsonExporter
 import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.Json
 
 /**
  * Point d'accès unique aux données. Toute écriture sur la table `boucles`
@@ -123,5 +124,23 @@ class BoucleRepository(
 
     fun ecrireModeSombre(actif: Boolean) {
         prefs.edit().putBoolean("mode_sombre", actif).apply()
+    }
+
+    // ── Options des listes à choix unique (Type / Tiers / Milieu) ──
+    private val jsonOptions = Json { ignoreUnknownKeys = true }
+
+    fun lireOptions(): ListeOptions {
+        val brut = prefs.getString("liste_options", null) ?: return ListeOptions()
+        return try {
+            jsonOptions.decodeFromString(ListeOptions.serializer(), brut)
+        } catch (e: Exception) {
+            ListeOptions()
+        }
+    }
+
+    fun ecrireOptions(options: ListeOptions) {
+        prefs.edit()
+            .putString("liste_options", jsonOptions.encodeToString(ListeOptions.serializer(), options))
+            .apply()
     }
 }

@@ -69,7 +69,8 @@ object JsonImporter {
                 blocage = b.blocage,
                 impact = b.impact,
                 defaut = b.defaut,
-                statut = b.statut
+                statut = b.statut,
+                milieu = b.milieu
             )
 
             for (m in b.mouvements) {

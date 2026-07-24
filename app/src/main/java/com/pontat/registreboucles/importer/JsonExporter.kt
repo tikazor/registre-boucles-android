@@ -37,6 +37,7 @@ object JsonExporter {
                     impact = b.impact,
                     defaut = b.defaut,
                     statut = b.statut,
+                    milieu = b.milieu,
                     mouvements = (mouvParBoucle[b.id] ?: emptyList())
                         .sortedBy { it.date }
                         .map { MouvementJson(date = iso(it.date), note = it.contenu) }

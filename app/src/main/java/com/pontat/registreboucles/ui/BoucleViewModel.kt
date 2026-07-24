@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
+import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
@@ -44,6 +45,15 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         val nouveau = !_modeSombre.value
         _modeSombre.value = nouveau
         repository.ecrireModeSombre(nouveau)
+    }
+
+    // Options des listes à choix unique (Type / Tiers / Milieu), éditables en config.
+    private val _options = MutableStateFlow(repository.lireOptions())
+    val options: StateFlow<ListeOptions> = _options.asStateFlow()
+
+    fun majOptions(nouvelles: ListeOptions) {
+        _options.value = nouvelles
+        repository.ecrireOptions(nouvelles)
     }
 
     fun setRecherche(q: String) {
@@ -92,6 +102,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         impact: String,
         echeance: Long?,
         tiers: String?,
+        milieu: String?,
         onCree: (String) -> Unit
     ) {
         viewModelScope.launch {
@@ -109,7 +120,8 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
                     blocage = null,
                     impact = impact,
                     defaut = null,
-                    statut = "ouverte"
+                    statut = "ouverte",
+                    milieu = milieu
                 )
             )
             onCree(id)

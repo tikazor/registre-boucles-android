@@ -16,5 +16,6 @@ data class Boucle(
     val blocage: String?,
     val impact: String,                     // libre, texte
     val defaut: String?,                    // action par défaut si non tranché
-    val statut: String                      // libre : ouverte / en_cours / fermee / defaut_applique
+    val statut: String,                     // libre : ouverte / en_cours / fermee / defaut_applique
+    val milieu: String? = null              // pro / perso / projet / autre (valeurs configurables)
 )

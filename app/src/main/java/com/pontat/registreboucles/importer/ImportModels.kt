@@ -26,6 +26,7 @@ data class BoucleJson(
     val impact: String,
     val defaut: String? = null,
     val statut: String,
+    val milieu: String? = null,
     val mouvements: List<MouvementJson> = emptyList()
 )
 
