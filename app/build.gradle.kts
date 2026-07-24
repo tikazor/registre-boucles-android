@@ -6,6 +6,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Schéma Room versionné : permet le diff de schéma et les tests de migration.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.pontat.registreboucles"
     compileSdk = 34
