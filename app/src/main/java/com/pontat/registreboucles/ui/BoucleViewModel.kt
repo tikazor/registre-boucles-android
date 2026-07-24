@@ -12,6 +12,7 @@ import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.data.Statut
+import com.pontat.registreboucles.data.genererProchainId
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
 import com.pontat.registreboucles.importer.JsonImporter
@@ -125,7 +126,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         onCree: (String) -> Unit
     ) {
         viewModelScope.launch {
-            val id = genererProchainId()
+            val id = genererProchainId(repository.tousLesIds())
             repository.creer(
                 Boucle(
                     id = id,
@@ -299,15 +300,6 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     fun effacerErreurImport() {
         _erreurImport.value = null
-    }
-
-    /** Génère l'identifiant suivant au format B-### à partir des ids existants. */
-    private suspend fun genererProchainId(): String {
-        val regex = Regex("""B-(\d+)""")
-        val max = repository.tousLesIds()
-            .mapNotNull { regex.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
-            .maxOrNull() ?: 0
-        return "B-%03d".format(max + 1)
     }
 
     class Factory(private val repository: BoucleRepository) : ViewModelProvider.Factory {
