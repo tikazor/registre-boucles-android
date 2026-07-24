@@ -234,8 +234,13 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
             }
             _erreurImport.value = null
             if (repository.estVide()) {
-                repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
-                _baseVide.value = false
+                // Échec de la sauvegarde de sécurité = import annulé (rien n'est écrasé).
+                try {
+                    repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
+                    _baseVide.value = false
+                } catch (e: Exception) {
+                    _erreurImport.value = e.message ?: "Import annulé : sauvegarde impossible."
+                }
             } else {
                 _importEnAttente.value = res
             }
@@ -246,8 +251,15 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun confirmerAjout() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
-            repository.importerAjouter(res.boucles, res.mouvements, res.journaux)
-            _importEnAttente.value = null
+            try {
+                repository.importerAjouter(res.boucles, res.mouvements, res.journaux)
+                _importEnAttente.value = null
+            } catch (e: Exception) {
+                // Filet manqué : rien n'a été écrit. On ferme le choix et on
+                // remonte l'erreur (l'utilisateur pourra relancer l'import).
+                _importEnAttente.value = null
+                _erreurImport.value = e.message ?: "Import annulé : sauvegarde impossible."
+            }
         }
     }
 
@@ -255,8 +267,13 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun confirmerEcrasement() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
-            repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
-            _importEnAttente.value = null
+            try {
+                repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
+                _importEnAttente.value = null
+            } catch (e: Exception) {
+                _importEnAttente.value = null
+                _erreurImport.value = e.message ?: "Import annulé : sauvegarde impossible."
+            }
         }
     }
 

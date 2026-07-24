@@ -2,6 +2,7 @@ package com.pontat.registreboucles.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.glance.appwidget.updateAll
 import com.pontat.registreboucles.importer.BackupExporter
 import com.pontat.registreboucles.importer.JsonExporter
@@ -9,6 +10,11 @@ import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import java.io.File
+
+/** Échec d'une sauvegarde de sécurité (écriture fichier impossible). */
+class BackupException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+private const val TAG = "BoucleRepository"
 
 /**
  * Point d'accès unique aux données. Toute écriture sur la table `boucles`
@@ -88,6 +94,7 @@ class BoucleRepository(
         mouvements: List<Mouvement>,
         journaux: List<Journal>
     ): Int {
+        creerBackupStrict()   // filet AVANT toute écriture : échec = import annulé
         val existants = dao.tousLesIds().toSet()
         val nouvelles = boucles.filter { it.id !in existants }
         val nouveauxIds = nouvelles.map { it.id }.toSet()
@@ -109,6 +116,7 @@ class BoucleRepository(
         mouvements: List<Mouvement>,
         journaux: List<Journal>
     ) {
+        creerBackupStrict()   // filet AVANT le vidage : échec = import annulé
         dao.supprimerTousJournaux()
         dao.supprimerTousMouvements()
         dao.supprimerToutesBoucles()
@@ -162,9 +170,10 @@ class BoucleRepository(
     /**
      * Backup local versionné complet (Boucle + Journal). Stockage app-scoped
      * externe (aucune permission runtime). Rotation : garde les 10 plus récents.
-     * Renvoie le fichier créé (ou null si écriture impossible).
+     * STRICT : lève [BackupException] (loggée) si l'écriture échoue — utilisé
+     * comme filet avant tout import destructif et par la sauvegarde manuelle.
      */
-    suspend fun creerBackup(): File? {
+    suspend fun creerBackupStrict(): File {
         val contenu = BackupExporter.serialiser(
             dao.toutesLesBoucles(),
             dao.tousLesMouvements(),
@@ -172,18 +181,44 @@ class BoucleRepository(
         )
         val dossier = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
         val fichier = File(dossier, "boucles-backup-${System.currentTimeMillis()}.json")
-        return try {
+        try {
             fichier.writeText(contenu)
-            // Rotation : le timestamp à largeur fixe rend le tri par nom chronologique.
+        } catch (e: Exception) {
+            Log.e(TAG, "Sauvegarde impossible (${fichier.name})", e)
+            throw BackupException(
+                "Sauvegarde impossible : ${e.message ?: e.javaClass.simpleName}", e
+            )
+        }
+        // Rotation : le timestamp à largeur fixe rend le tri par nom chronologique.
+        // Un échec de rotation ne compromet pas la sauvegarde déjà écrite.
+        try {
             dossier.listFiles { f ->
                 f.name.startsWith("boucles-backup-") && f.name.endsWith(".json")
             }?.sortedByDescending { it.name }
                 ?.drop(10)
                 ?.forEach { it.delete() }
-            fichier
         } catch (e: Exception) {
-            null
+            Log.e(TAG, "Rotation des backups impossible", e)
         }
+        return fichier
+    }
+
+    /**
+     * Backup best-effort (clôture automatique) : loggue et renvoie null en cas
+     * d'échec sans interrompre le flux appelant.
+     */
+    suspend fun creerBackup(): File? = try {
+        creerBackupStrict()
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Fichier de backup le plus récent (ou null si aucun). */
+    fun dernierBackupFichier(): File? {
+        val dossier = File(appContext.getExternalFilesDir(null), "backups")
+        return dossier.listFiles { f ->
+            f.name.startsWith("boucles-backup-") && f.name.endsWith(".json")
+        }?.maxByOrNull { it.name }
     }
 
     /** Statistiques pour le widget. */
