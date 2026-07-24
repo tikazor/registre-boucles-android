@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <include domain="database" path="registre-boucles.db" />
+    <!-- Backups locaux versionnés : survivent à la désinstallation / au changement d'appareil. -->
+    <include domain="external" path="backups/" />
 </full-backup-content>

@@ -1,6 +1,8 @@
 package com.pontat.registreboucles.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.theme.Marine
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +52,21 @@ fun ConfigScreen(
     val depart = remember { vm.options.value }
     val types = remember { mutableStateListOf(*depart.types.toTypedArray()) }
     val tiers = remember { mutableStateListOf(*depart.tiers.toTypedArray()) }
+
+    // Sortie du dernier backup vers un emplacement choisi (Drive, stockage…).
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            vm.exporterDernierBackup(uri) { erreur ->
+                Toast.makeText(
+                    context,
+                    erreur ?: "Backup exporté",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     fun persister() {
         vm.majOptions(
@@ -113,6 +132,19 @@ fun ConfigScreen(
                     }
                 }) {
                     Text("Sauvegarder maintenant")
+                }
+                Text(
+                    "Les backups internes disparaissent à la désinstallation. Exporte " +
+                        "le dernier vers un emplacement durable (Drive, stockage partagé…).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = {
+                    val horodatage = LocalDateTime.now()
+                        .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
+                    exportBackupLauncher.launch("boucles-backup-$horodatage.json")
+                }) {
+                    Text("Exporter le dernier backup")
                 }
             }
         }

@@ -221,6 +221,25 @@ class BoucleRepository(
         }?.maxByOrNull { it.name }
     }
 
+    /**
+     * Écrit le backup le plus récent (ou en crée un à la volée si aucun) vers
+     * l'URI choisi (ACTION_CREATE_DOCUMENT), pour sortir la sauvegarde du
+     * stockage app-scoped. Renvoie null si succès, sinon un message d'erreur.
+     */
+    suspend fun exporterDernierBackupVers(uri: Uri): String? {
+        return try {
+            val fichier = dernierBackupFichier() ?: creerBackupStrict()
+            val contenu = fichier.readText()
+            val flux = appContext.contentResolver.openOutputStream(uri)
+                ?: return "Impossible d'ouvrir le fichier de destination."
+            flux.use { it.write(contenu.toByteArray(Charsets.UTF_8)) }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Export du dernier backup impossible", e)
+            e.message ?: "Export impossible."
+        }
+    }
+
     /** Statistiques pour le widget. */
     suspend fun compterActives(): Int = dao.compterActives()
 

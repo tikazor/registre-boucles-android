@@ -207,6 +207,14 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         viewModelScope.launch { onFait(repository.creerBackup()?.name) }
     }
 
+    /**
+     * Exporte le dernier backup vers l'URI choisi (pour le sortir du stockage
+     * app-scoped). [onFini] reçoit null si succès, sinon un message d'erreur.
+     */
+    fun exporterDernierBackup(uri: Uri, onFini: (erreur: String?) -> Unit) {
+        viewModelScope.launch { onFini(repository.exporterDernierBackupVers(uri)) }
+    }
+
     // Filtre par milieu de l'écran Liste (persiste en navigation, comme les autres filtres).
     private val _filtreMilieu = MutableStateFlow<Milieu?>(null)
     val filtreMilieu: StateFlow<Milieu?> = _filtreMilieu.asStateFlow()
