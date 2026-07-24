@@ -77,6 +77,9 @@ interface BoucleDao {
     @Query("SELECT boucleId, MAX(date) AS derniere FROM mouvements GROUP BY boucleId")
     fun observerDernieresModifs(): Flow<List<DerniereModifRow>>
 
+    @Query("SELECT boucleId, MAX(date) AS derniere FROM mouvements GROUP BY boucleId")
+    suspend fun dernieresModifsListe(): List<DerniereModifRow>
+
     @Insert
     suspend fun insererMouvement(mouvement: Mouvement)
 
