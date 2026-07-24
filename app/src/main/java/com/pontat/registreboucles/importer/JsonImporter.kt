@@ -5,6 +5,9 @@ import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.data.Statut
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -38,7 +41,7 @@ object JsonImporter {
         }
 
         val racine = try {
-            json.decodeFromString<ImportRacine>(contenu)
+            json.decodeFromString<RegistreRacine>(contenu)
         } catch (e: Exception) {
             throw ImportException(
                 "Format JSON invalide ou champ obligatoire manquant.\n" +
@@ -75,7 +78,7 @@ object JsonImporter {
                 origine = b.origine,
                 creee = creee,
                 echeance = echeance,
-                tiers = if (b.tiers) "Oui" else null,
+                tiers = interpreterTiers(b.tiers),
                 preuveAttendue = b.preuveAttendue,
                 blocage = b.blocage,
                 impact = b.impact,
@@ -110,11 +113,30 @@ object JsonImporter {
     }
 
     /**
+     * Interprète le champ `tiers`, tolérant aux deux formes historiques :
+     * - booléen `true`  -> "Oui" ; `false` -> null (ancien format) ;
+     * - chaîne          -> valeur telle quelle (préserve toute valeur libre) ;
+     * - absent / null   -> null.
+     * On distingue explicitement une VRAIE chaîne "true" d'un booléen JSON via
+     * [JsonPrimitive.isString], pour ne pas transformer une valeur libre.
+     */
+    internal fun interpreterTiers(element: JsonElement?): String? {
+        if (element == null || element is JsonNull) return null
+        val prim = element as? JsonPrimitive ?: return null
+        if (!prim.isString) {
+            // Booléen legacy (ou autre littéral non-chaîne).
+            prim.content.toBooleanStrictOrNull()?.let { return if (it) "Oui" else null }
+            return prim.content.ifBlank { null }
+        }
+        return prim.content.ifBlank { null }
+    }
+
+    /**
      * Convertit une date ISO-8601 en epoch millis.
      * Accepte les instants (`2026-04-12T10:00:00Z`), les datetimes locaux
      * (`2026-04-12T10:00:00`) et les dates seules (`2026-04-12`).
      */
-    private fun parseDate(valeur: String, champ: String, boucleId: String): Long {
+    internal fun parseDate(valeur: String, champ: String, boucleId: String): Long {
         val v = valeur.trim()
         return try {
             Instant.parse(v).toEpochMilli()

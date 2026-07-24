@@ -145,7 +145,11 @@ class BoucleRepository(
      * l'écrit dans l'URI fourni par ACTION_CREATE_DOCUMENT. Renvoie le succès.
      */
     suspend fun exporterVers(uri: Uri): Boolean = try {
-        val contenu = JsonExporter.serialiser(dao.toutesLesBoucles(), dao.tousLesMouvements())
+        val contenu = JsonExporter.serialiser(
+            dao.toutesLesBoucles(),
+            dao.tousLesMouvements(),
+            dao.tousLesJournaux()
+        )
         val ok = appContext.contentResolver.openOutputStream(uri)?.use { out ->
             out.write(contenu.toByteArray(Charsets.UTF_8))
             true
