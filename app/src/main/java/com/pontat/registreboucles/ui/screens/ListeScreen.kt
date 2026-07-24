@@ -51,8 +51,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,6 +65,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +89,7 @@ import com.pontat.registreboucles.ui.theme.Alerte
 import com.pontat.registreboucles.ui.theme.Marine
 import com.pontat.registreboucles.ui.theme.Teal
 import com.pontat.registreboucles.ui.theme.Warn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
@@ -117,10 +121,12 @@ private data class Compteurs(
 @Composable
 fun ListeScreen(
     vm: BoucleViewModel,
-    onCreer: () -> Unit,
     onOuvrirDebug: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState()
+    var creationOuverte by remember { mutableStateOf(false) }
     val boucles by vm.boucles.collectAsStateWithLifecycle()
     val filtre by vm.filtreStatut.collectAsStateWithLifecycle()
     val recherche by vm.recherche.collectAsStateWithLifecycle()
@@ -225,7 +231,7 @@ fun ListeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onCreer,
+                onClick = { creationOuverte = true },
                 containerColor = Teal,
                 contentColor = Color.White,
                 shape = RoundedCornerShape(16.dp)
@@ -312,6 +318,24 @@ fun ListeScreen(
                 mouvementCible = null
             }
         )
+    }
+
+    // Création en bottom sheet (déclenchée par le FAB).
+    // Fermeture : clic hors sheet (scrim), swipe vers le bas, croix, ou validation.
+    if (creationOuverte) {
+        ModalBottomSheet(
+            onDismissRequest = { creationOuverte = false },
+            sheetState = sheetState
+        ) {
+            CreationForm(
+                vm = vm,
+                onFerme = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        if (!sheetState.isVisible) creationOuverte = false
+                    }
+                }
+            )
+        }
     }
 
     // Choix d'import Ajouter / Écraser (base non vide).
