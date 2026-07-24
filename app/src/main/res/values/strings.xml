@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Registre des Boucles</string>
+    <string name="app_name">Register Mnemosyne</string>
     <string name="widget_description">Boucles actives et prochaines échéances</string>
 </resources>

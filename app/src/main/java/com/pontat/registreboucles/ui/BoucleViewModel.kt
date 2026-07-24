@@ -27,6 +27,9 @@ enum class FiltreStatut(val libelle: String) {
     FERMEES("Fermées")
 }
 
+/** Boucle ciblée par un tap sur le widget (déplie la carte, ouvre éventuellement le mouvement). */
+data class CibleWidget(val boucleId: String, val ouvrirMouvement: Boolean)
+
 class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     // Filtres de l'écran Liste — hébergés ici pour persister à travers la
@@ -54,6 +57,18 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun majOptions(nouvelles: ListeOptions) {
         _options.value = nouvelles
         repository.ecrireOptions(nouvelles)
+    }
+
+    // Deep-link depuis le widget : boucle à déplier (et éventuellement ouvrir le mouvement).
+    private val _cibleWidget = MutableStateFlow<CibleWidget?>(null)
+    val cibleWidget: StateFlow<CibleWidget?> = _cibleWidget.asStateFlow()
+
+    fun ciblerDepuisWidget(boucleId: String, ouvrirMouvement: Boolean) {
+        _cibleWidget.value = CibleWidget(boucleId, ouvrirMouvement)
+    }
+
+    fun cibleConsommee() {
+        _cibleWidget.value = null
     }
 
     fun setRecherche(q: String) {

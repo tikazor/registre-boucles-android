@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,6 +136,8 @@ fun ListeScreen(
     val dernieresModifs by vm.dernieresModifs.collectAsStateWithLifecycle()
     val importEnAttente by vm.importEnAttente.collectAsStateWithLifecycle()
     val erreurImport by vm.erreurImport.collectAsStateWithLifecycle()
+    val cibleWidget by vm.cibleWidget.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
 
     var menuOuvert by remember { mutableStateOf(false) }
     var expandedId by remember { mutableStateOf<String?>(null) }
@@ -181,13 +185,24 @@ fun ListeScreen(
             .filter { correspond(it, recherche) }
     }
 
+    // Tap sur une carte du widget : déplie la boucle, ouvre le mouvement si demandé, défile.
+    LaunchedEffect(cibleWidget, liste) {
+        cibleWidget?.let { c ->
+            expandedId = c.boucleId
+            if (c.ouvrirMouvement) mouvementCible = c.boucleId
+            val idx = liste.indexOfFirst { it.id == c.boucleId }
+            if (idx >= 0) listState.animateScrollToItem(idx)
+            vm.cibleConsommee()
+        }
+    }
+
     Scaffold(
         floatingActionButtonPosition = FabPosition.End,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Registre des Boucles",
+                        text = "Register Mnemosyne",
                         modifier = Modifier.pointerInput(Unit) {
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false)
@@ -294,6 +309,7 @@ fun ListeScreen(
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(14.dp, 0.dp, 14.dp, 110.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)

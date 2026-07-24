@@ -53,7 +53,7 @@ fun ImportScreen(vm: BoucleViewModel) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Registre des Boucles",
+            text = "Register Mnemosyne",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary
         )
