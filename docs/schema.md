@@ -311,6 +311,65 @@ le dossier partagé est un canal de confiance, comme l'appareil lui-même.
 
 ---
 
+## 10 bis. Format « lot d'analyse » (sortie de la capture)
+
+Format de **SORTIE**, distinct du contrat d'échange des boucles. Il transporte des
+notes brutes capturées depuis d'autres applications, pour être analysées
+**hors de l'application**.
+
+```json
+{
+  "version": 1,
+  "type": "lot-analyse",
+  "exporteLe": 1784982153000,
+  "captures": [
+    {
+      "id": "C-20260725-142233-9f2b",
+      "contenuBrut": "Rappeler Marie au sujet du dossier\nvoir aussi la convention",
+      "titre": "Dossier Marie",
+      "appareil": "B",
+      "appSource": "com.miui.notes",
+      "capturee": 1784982153000
+    }
+  ]
+}
+```
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `version` | entier | `1`. Numérotation propre au lot, **indépendante** de la version du contrat des boucles. |
+| `type` | chaîne | `"lot-analyse"`. Permet de distinguer ce fichier d'un export de registre au premier coup d'œil. |
+| `exporteLe` | entier | Epoch millis. |
+| `captures[].id` | chaîne | `C-<aaaaMMjj-HHmmss>-<4 hex>`. |
+| `captures[].contenuBrut` | chaîne | Le texte **tel quel** (tronqué au-delà de 100 000 caractères, la troncature étant écrite dans le contenu). |
+| `captures[].titre` | chaîne | Sujet fourni par l'app source, ou absent. |
+| `captures[].appareil` | chaîne | Code appareil, nom libre, ou `LOCAL`. |
+| `captures[].appSource` | chaîne | Paquet de l'app émettrice, ou absent. |
+| `captures[].capturee` | entier | Epoch millis. **Seules dates en millis du document** : ce sont des métadonnées machine. |
+
+Nom de fichier : `lot-analyse-<aaaaMMjj-HHmm>.json`.
+
+### Ce que le lot ne contient pas, et pourquoi
+
+Ni statut de capture, ni empreinte, ni boucle liée, ni le moindre champ de
+registre. Le lot est de la **matière première**, pas un état : ce qui relève du
+suivi reste dans l'application.
+
+### L'analyse est externe — comment le résultat revient
+
+Le lot **n'est pas réimportable** : rien ne rentre par cette porte. L'application
+ne contient aucune analyse de contenu — pas de mots-clés, pas de détection
+d'échéance, aucune création automatique de boucle (invariant I15).
+
+Le chemin de retour est celui qui existe déjà : un producteur externe (IA incluse)
+lit le lot, produit un JSON de **propositions** conforme au contrat ci-dessus
+(`source: "ia"`), l'utilisateur l'importe à la main, et ces boucles entrent en
+`proposee` — donc dans l'écran Supervision, où elles sont acceptées, amendées ou
+rejetées. Une capture reste liée à la boucle qu'elle a produite (`boucleLiee`)
+seulement si la boucle a été créée **depuis la boîte de réception**, à la main.
+
+---
+
 ## 11. Exemple complet et minimal valide
 
 ```json

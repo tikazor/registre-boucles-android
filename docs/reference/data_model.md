@@ -1,19 +1,19 @@
 ---
-title: Modèle de données interne (Room v6)
+title: Modèle de données interne (Room v7)
 type: reference
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,EvenementSync,Statut,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/6.json
+source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,EvenementSync,Capture,Statut,StatutCapture,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,IdentifiantCapture,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/7.json
 ---
 
-# Modèle de données interne (Room v6)
+# Modèle de données interne (Room v7)
 
 Ce document décrit le modèle **interne** (tables SQLite / entités Room).
 Pour la représentation **JSON** échangée à l'import/export, voir
 [`../schema.md`](../schema.md) — les deux ne sont pas identiques (voir
 « Écarts connus » en fin de document) et ne doivent pas être confondus.
 
-Base : `registre-boucles.db`, version de schéma **6**, 5 tables.
+Base : `registre-boucles.db`, version de schéma **7**, 6 tables.
 
 ---
 
@@ -161,6 +161,44 @@ Pas de clé étrangère : l'événement survit à toute donnée qu'il décrit.
 synchronisation par la fonction pure — mêmes données, mêmes conflits. Fermer
 l'application au milieu d'un arbitrage ne perd donc rien.
 
+## 3 quater. Table `captures` — entité `Capture`
+
+Note brute venue d'une autre application (partage ou sélection de texte).
+**Une capture n'est pas une boucle** : elle vit en amont du registre, et rien n'en
+sort vers `boucles` sans une action explicite de l'utilisateur.
+
+| Colonne | Type SQL | Nullable | Signification |
+|---|---|---|---|
+| `id` | TEXT | non (**PK**) | `C-<aaaaMMjj-HHmmss>-<4 hex>`. Opaque et sans coordination entre appareils : une capture n'est jamais désignée à l'oral. |
+| `contenuBrut` | TEXT | non | Le texte **tel quel**. Jamais réécrit, jamais analysé (invariant I15). Tronqué au-delà de 100 000 caractères, en le signalant dans le contenu. |
+| `titre` | TEXT | oui | `EXTRA_SUBJECT` quand l'app source le fournit. |
+| `appareil` | TEXT | non | Code appareil (AND-07), sinon nom libre saisi en Réglages, sinon `LOCAL`. |
+| `appSource` | TEXT | oui | Paquet de l'app émettrice (`referrer?.host`), ex. `com.miui.notes`. `null` = non communiqué. |
+| `capturee` | INTEGER | non | Epoch millis. Tri d'affichage : `capturee DESC`. |
+| `empreinte` | TEXT | non | SHA-256 du contenu normalisé (**indexé**). Base de la déduplication. |
+| `statut` | TEXT | non | `StatutCapture.valeurStockee()` (**indexé**). §5.5. |
+| `boucleLiee` | TEXT | oui | Identifiant de la boucle produite. **Pas de clé étrangère** — voir ci-dessous. |
+
+Index : `index_captures_empreinte`, `index_captures_statut`. Aucune contrainte
+`UNIQUE` sur `empreinte` : le contrôle de doublon se fait **en amont**
+(`preparerCapture`), pour pouvoir informer (« déjà capturé le … ») au lieu de
+planter sur une contrainte violée.
+
+### Pourquoi `boucleLiee` n'est pas une clé étrangère
+
+Une clé étrangère imposerait un comportement en cascade : soit `ON DELETE CASCADE`,
+et supprimer une boucle effacerait la capture qui l'a produite — impossible, une
+capture ne disparaît jamais (I14) ; soit `RESTRICT`, et une boucle issue d'une
+capture deviendrait indéboulonnable. Le lien est donc **informatif** : si la boucle
+est supprimée, la capture conserve la trace de l'identifiant qu'elle a produit.
+
+### Ce que la table ne permet pas
+
+Aucune suppression. Le DAO n'expose ni `@Delete` ni `DELETE FROM captures`, et le
+repository ne propose que `ignorerCapture` / `reactiverCapture` /
+`lierCaptureABoucle`. Une capture s'écarte, elle ne s'efface pas — c'est vérifié
+par réflexion dans `CaptureTest`.
+
 ---
 
 ## 4. Mouvement vs Journal — la distinction centrale
@@ -180,7 +218,7 @@ Elle n'est évidente pour personne et c'est le cœur du modèle :
 
 ---
 
-## 5. Les 4 enums
+## 5. Les 5 enums
 
 ### 5.1 `Statut` — cycle de vie (source de vérité unique)
 
@@ -245,6 +283,21 @@ Deux particularités **vérifiées dans le code**, différentes des 3 autres enu
    → *à confirmer* : faut-il valider/rejeter un type de journal inconnu à
    l'import, comme on le fait pour `statut` ? Non tranché à ce jour.
 
+### 5.5 `StatutCapture` — cycle de vie d'une capture
+
+| Valeur enum | Valeur stockée | Sens | Réversible |
+|---|---|---|---|
+| `BRUTE` | `brute` | Capturée, pas encore exploitée. État d'arrivée. | — |
+| `EXPORTEE` | `exportee` | Partie dans un lot d'analyse. | oui → `BRUTE` |
+| `TRAITEE` | `traitee` | A produit une boucle ; `boucleLiee` est renseigné. | **non** |
+| `IGNOREE` | `ignoree` | Écartée volontairement. | oui → `BRUTE` |
+
+Aucun état ne signifie « supprimée » (I14). `versTraitee(boucleId)` **exige**
+l'identifiant produit, et `versBrute()` refuse le retour depuis `TRAITEE` : défaire
+une capture traitée serait une décision sur le registre, pas sur la boîte de
+réception. Un statut non reconnu donne `statutTypé() == null` : la capture n'est pas
+considérée comme brute, elle reste visible dans « Toutes ».
+
 ### Tolérance `depuis()` — récapitulatif
 
 | Enum | Accepte | Insensible à la casse | Valeur inconnue |
@@ -253,6 +306,7 @@ Deux particularités **vérifiées dans le code**, différentes des 3 autres enu
 | `Milieu` | nom d'enum **ou** libellé | oui | `null` |
 | `SourceBoucle` | nom d'enum | oui | `null` (→ `USER` via `sourceTypee()`) |
 | `JournalType` | nom d'enum exact | **non** | `DECLARATION` |
+| `StatutCapture` | nom d'enum | oui | `null` |
 
 ---
 
@@ -269,8 +323,9 @@ n'efface jamais les données).
 | 3 → 4 | `ALTER TABLE boucles ADD COLUMN source TEXT` | AND-03 |
 | 4 → 5 | `ALTER TABLE boucles ADD COLUMN modifieeLe INTEGER` + `ALTER TABLE boucles ADD COLUMN modifieePar TEXT` + `CREATE TABLE IF NOT EXISTS suppressions (…)` | AND-07 |
 | 5 → 6 | `CREATE TABLE IF NOT EXISTS evenements_sync (…)` — aucune table existante touchée | AND-08 |
+| 6 → 7 | `CREATE TABLE IF NOT EXISTS captures (…)` + `index_captures_empreinte` + `index_captures_statut` | AND-06 |
 
-Le schéma est exporté et versionné dans `app/schemas/` (v3 à v6 présents)
+Le schéma est exporté et versionné dans `app/schemas/` (v3 à v7 présents)
 depuis AND-02 (`exportSchema = true`, `room.schemaLocation`). Il n'existe
 **aucun test de migration** : cela exigerait un `androidTest` sur émulateur —
 dette assumée, cf. [`../explanation/architecture.md`](../explanation/architecture.md).
@@ -291,6 +346,9 @@ dette assumée, cf. [`../explanation/architecture.md`](../explanation/architectu
 | `retirerSuppression(boucleId)` | Retrait d'UNE tombstone, uniquement lors d'une résurrection décidée par le moteur de fusion. Aucune purge par ancienneté n'existe. |
 | `appliquerPlanSync(…)` | `@Transaction` : applique un `PlanFusion` **et** consigne son `EvenementSync`. Aucune décision n'y est prise (invariant I12). |
 | `observerEvenementsSync()` / `dernierEvenementSync()` | Historique de synchronisation, en lecture seule. |
+| `insererCapture` / `mettreAJourCapture` | Les **seules** écritures sur `captures`. Aucune méthode de suppression n'existe (invariant I14). |
+| `captureParEmpreinte(empreinte)` | Contrôle de doublon avant insertion (index sur `empreinte`). |
+| `observerNombreCapturesBrutes()` | `WHERE statut = 'brute'` — compteur du badge de la boîte de réception. |
 
 ---
 

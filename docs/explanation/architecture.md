@@ -28,7 +28,7 @@ flowchart TD
     VM[BoucleViewModel<br/>StateFlow, filtres, état d'import]
     REPO[BoucleRepository<br/>POINT D'ÉCRITURE UNIQUE]
     DAO[BoucleDao]
-    DB[(Room — registre-boucles.db v6)]
+    DB[(Room — registre-boucles.db v7)]
 
     W[BoucleWidget — Glance]
     SAF[[SAF : import / export JSON]]
@@ -99,13 +99,16 @@ Le cœur des règles est écrit en fonctions **sans dépendance Android** :
 | `traceSuppression` | `Suppression.kt` | Trace de suppression (tombstone) |
 | `calculerFusionSync`, `appliquerPlan`, `evenementDepuisPlan`, `avanceHorloge` | `FusionSync.kt` | Fusion bidirectionnelle : le plan est **calculé** ici, appliqué par le repository. Rend testables l'idempotence et la symétrie |
 | `nomFichierEtat`, `codeDepuisNomFichier` | `DossierSync.kt` | Nommage des fichiers d'état (I11) |
+| `normaliserPourEmpreinte`, `empreinteCapture`, `tronquerCapture` | `EmpreinteCapture.kt` | Déduplication des captures : mesure du texte, jamais interprétation |
+| `preparerCapture` | `PreparationCapture.kt` | Décision d'entrée d'une note (créer / doublon / refus), sans effet de bord |
+| `genererIdCapture`, `genererIdCaptureUnique` | `IdentifiantCapture.kt` | Identifiant de capture, sans coordination entre appareils |
 | `doitReutiliserBackup`, `ageBackupDepuisNom` | `Backup.kt` | Décision d'anti-rafale |
 | `Statut` / `Milieu` / `SourceBoucle` + extensions | `Statut.kt`, … | Prédicats du cycle de vie |
 | `estEnRetard`, `estEcheanceProche`, `joursRestantsDepuis` | `Echeance.kt` | Catégories d'échéance du tableau de bord (date du jour en paramètre, donc testables) |
 
 **Pourquoi.** Ces fonctions sont testables en **JVM pure**, sans émulateur ni
 appareil : `./gradlew test` tourne en quelques secondes et **en CI**, sur chaque
-push. C'est ce qui permet aux 97 tests de garder les invariants. Un test
+push. C'est ce qui permet aux 127 tests de garder les invariants. Un test
 d'instrumentation Android aurait coûté un émulateur en CI et n'aurait
 probablement jamais tourné.
 
@@ -201,9 +204,9 @@ Elle est nommée ici pour ne pas être redécouverte :
    + filtres + overlay de fusion dans un seul fichier. Découpage identifié comme
    un lot dédié, à faire **en préambule de la prochaine évolution UI**, pas en
    passant.
-2. **Aucun test de migration Room.** Les schémas v3 à v6 sont versionnés
+2. **Aucun test de migration Room.** Les schémas v3 à v7 sont versionnés
    dans `app/schemas/`, mais vérifier une migration réelle exige un `androidTest`
-   sur émulateur. Les migrations 1→2, 2→3, 3→4, 4→5, 5→6 sont de simples `ALTER
+   sur émulateur. Les migrations 1→2 … 6→7 sont de simples `ALTER
    TABLE ADD COLUMN` / `CREATE TABLE`, et `fallbackToDestructiveMigration` n'est pas
    activé : une migration défaillante ferait échouer l'ouverture de la base
    (crash visible), elle n'effacerait pas les données.

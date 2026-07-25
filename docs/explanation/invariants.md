@@ -3,7 +3,7 @@ title: Invariants structurels de l'application
 type: explanation
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,FusionSync,DossierSync,EvenementSync,Coercition,Backup,CodeAppareil,Identifiants,Suppression,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
+source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,FusionSync,DossierSync,EvenementSync,Coercition,Backup,CodeAppareil,Identifiants,Suppression,Capture,StatutCapture,EmpreinteCapture,PreparationCapture,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
 ---
 
 # Invariants structurels
@@ -533,9 +533,100 @@ boucles adoptées (idempotence perdue), ou appliquer un plan sans ses
 
 ---
 
+## I14 — Une capture n'est jamais supprimée, seulement marquée
+
+**Énoncé.** Une note capturée depuis une autre application ne peut pas être
+effacée. Elle passe en `IGNOREE` (réversible), en `EXPORTEE` (réversible) ou en
+`TRAITEE`, et son `contenuBrut` n'est jamais réécrit.
+
+**Pourquoi.** C'est le prolongement direct de I1 : on ne ferme pas une boucle sans
+preuve, on n'efface pas une note parce qu'elle encombre. Une boîte de réception où
+l'on peut supprimer redevient une liste de tâches — et la note supprimée est
+précisément celle dont on se demandera, trois mois plus tard, ce qu'elle disait.
+Ignorer est une décision consultable ; supprimer n'en laisse aucune trace.
+
+**Où.**
+- `BoucleDao` : **aucune** méthode de suppression de capture. Pas de `@Delete`, pas
+  de `DELETE FROM captures`, pas même une purge par ancienneté. Seuls
+  `insererCapture` et `mettreAJourCapture` écrivent.
+- `BoucleRepository` : `ignorerCapture`, `reactiverCapture`,
+  `lierCaptureABoucle` — aucune n'efface.
+- `StatutCapture` : quatre états, tous de *traitement*. Aucun ne signifie
+  « effacée ».
+- `versBrute()` refuse le retour depuis `TRAITEE` (la boucle existe déjà) ;
+  `versTraitee(boucleId)` **exige** l'identifiant produit, donc une capture traitée
+  ne peut pas perdre le lien vers sa boucle.
+- `ReceptionScreen` ne propose aucune suppression, quel que soit le statut.
+- `Capture.boucleLiee` est une colonne simple, **sans clé étrangère** : une clé
+  étrangère imposerait un comportement en cascade (la suppression d'une boucle
+  emporterait la capture) ou bloquerait la suppression des boucles. Le lien reste
+  donc informatif — si la boucle disparaît, la capture garde la trace de
+  l'identifiant qu'elle a produit.
+
+**Testé par.** `CaptureTest.aucune_methode_de_suppression_n_est_exposee_pour_les_captures`
+inspecte le DAO **par réflexion** : ajouter un `@Delete` « juste pour nettoyer »
+fait tomber ce test. Plus les transitions :
+`brute_vers_exportee_puis_retour_en_brute`, `brute_vers_ignoree_puis_retour_en_brute`,
+`brute_vers_traitee_exige_la_boucle_produite`,
+`une_capture_traitee_ne_revient_pas_en_brute`.
+
+**Ce qui le casserait.** Une requête `DELETE FROM captures` ajoutée pour un
+« vidage de la boîte », une purge automatique des captures anciennes, ou un
+`onConflict = REPLACE` sur `insererCapture` : une collision d'identifiant
+écraserait alors une capture existante. C'est pour cela que l'insertion utilise
+`@Insert` sans stratégie de remplacement et que `genererIdCaptureUnique` contrôle
+l'unicité au lieu de faire confiance au tirage aléatoire.
+
+---
+
+## I15 — Aucune analyse de contenu dans l'application
+
+**Énoncé.** L'application ne lit jamais le texte d'une capture pour en déduire quoi
+que ce soit. Pas d'extraction de mots-clés, pas de détection d'échéance, pas de
+catégorisation, aucune création automatique de boucle. L'analyse est faite **hors**
+de l'application, et son résultat repasse par la supervision.
+
+**Pourquoi.** C'est le cœur du produit, pas une limitation technique. Une app qui
+devine transforme une note en engagement sans que personne ne l'ait décidé — et un
+registre-mémoire dont le contenu s'auto-remplit n'est plus une mémoire, c'est un
+flux. L'intelligence est autorisée, mais elle est dehors, et ce qu'elle propose
+entre en `proposee` (I6). La séparation « capture / boucle » est la forme concrète
+de cette règle : deux tables, deux temps, une décision humaine entre les deux.
+
+**Où.**
+- `CaptureActivity` lit `EXTRA_TEXT` / `EXTRA_PROCESS_TEXT` et les stocke. Aucune
+  autre lecture du texte.
+- `EmpreinteCapture.kt` **mesure** le texte (normalisation, hachage, troncature)
+  sans l'interpréter. La normalisation ne sert qu'à la déduplication ; le contenu
+  stocké reste intact.
+- `Capture.titrePropose()` / `originePropose()` **pré-remplissent un formulaire**
+  avec la première ligne et le nom de l'app source : aucune information n'est
+  extraite du sens du texte, et l'utilisateur valide.
+- Le seul chemin capture → registre est l'action « Créer une boucle », qui ouvre le
+  formulaire existant. Le repository n'a aucune méthode créant une boucle depuis une
+  capture sans passage par ce formulaire.
+- `LotAnalyseExporter` fait **sortir** les notes ; il ne sait pas les relire — le
+  format `lot-analyse` n'est pas importable.
+
+**Testé par.** `CaptureTest.le_titre_propose_vient_du_sujet_ou_de_la_premiere_ligne`
+et `l_origine_proposee_nomme_l_app_source_sans_rien_deduire` (le pré-remplissage ne
+dépend que de la structure, jamais du sens),
+`PreparationCaptureTest.le_contenu_est_stocke_tel_quel_sauf_troncature` et
+`une_capture_creee_arrive_en_brute_sans_boucle_liee` (aucune boucle créée à la
+capture), `LotAnalyseTest.chaque_capture_exporte_exactement_les_six_champs_prevus`
+(le lot ne transporte ni statut, ni empreinte, ni boucle liée).
+
+**Ce qui le casserait.** Une expression régulière cherchant des dates dans le
+contenu « pour proposer une échéance », un classement automatique par mots-clés, un
+`enregistrerCapture` qui créerait aussi une boucle, ou l'ajout d'un SDK d'analyse
+embarqué (que la garde CI d'I5 n'attraperait pas, faute d'être un client réseau).
+C'est une règle de revue de code, comme I1.
+
+---
+
 ## Comment savoir si un invariant est cassé
 
-**1. Lancer les tests.** `./gradlew test` — 97 tests. Correspondance
+**1. Lancer les tests.** `./gradlew test` — 127 tests. Correspondance
 invariant → tests qui tomberaient :
 
 | Invariant | Tests qui tomberaient |
@@ -553,6 +644,8 @@ invariant → tests qui tomberaient :
 | I11 | `FichierEtatTest` (4) — mais pas l'écriture SAF elle-même |
 | I12 | *aucun test unitaire* → lecture de code (comme I4) |
 | I13 | `FusionSyncTest` (19, dont idempotence et symétrie), `JournalSyncTest` (4) |
+| I14 | `CaptureTest` (14, dont l'inspection du DAO par réflexion) |
+| I15 | `CaptureTest` (pré-remplissage), `PreparationCaptureTest` (5), `LotAnalyseTest` (5) |
 
 **2. Lire le résultat de la CI.** Le step « Vérifier l'absence de réseau
 (manifest mergé) » échoue en cas de régression sur I5 ; il bloque la publication
@@ -570,6 +663,8 @@ grep -rn "dao.supprimer(" app/src/main/java/                              # atte
 grep -rn "ecrireEtat(" app/src/main/java/                                 # attendu : le seul appel passe le code LOCAL (I11)
 grep -n "creerBackupStrict(forcer = true)" \
      app/src/main/java/com/pontat/registreboucles/data/BoucleRepository.kt # attendu : 4 (3 imports + sync, I12)
+grep -rniE "DELETE FROM captures|@Delete" \
+     app/src/main/java/com/pontat/registreboucles/data/BoucleDao.kt        # attendu : le seul @Delete concerne les boucles (I14)
 ```
 
 **4. Ce que rien n'attrape.** I1 contourné par une écriture directe de statut,

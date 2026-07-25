@@ -12,6 +12,39 @@ commits **par lot de travail**, pas par commit.
 ## [Non publié]
 
 ### Added
+- **Couche de capture multi-sources** (lot AND-06) : une porte d'entrée pour les
+  notes prises ailleurs, en deux taps et sans quitter l'application d'origine.
+  - **Capture depuis n'importe quelle app** : partage (`ACTION_SEND`) et sélection
+    de texte (`ACTION_PROCESS_TEXT`), filtre `text/plain` strict — aucune image,
+    aucun OCR. Une feuille basse montre l'aperçu, un bouton enregistre, et on
+    revient immédiatement à l'app d'origine (l'application complète ne s'ouvre pas,
+    la capture ne laisse pas de fenêtre dans les récents).
+  - **Une note brute n'est pas une boucle** : les captures vivent dans leur propre
+    table, en amont du registre. Rien n'entre dans les boucles sans une action
+    explicite — sans cette séparation, on remplacerait un éparpillement par un
+    dépotoir.
+  - **Boîte de réception** : badge chiffré dans la barre (masqué si vide), liste du
+    plus récent au plus ancien, filtres par statut, recherche plein texte,
+    consultation du texte intégral **non modifiable**, et « Créer une boucle » qui
+    ouvre le formulaire existant pré-rempli. La capture passe alors en `TRAITEE` et
+    garde l'identifiant de la boucle produite.
+  - **Aucune suppression de capture, jamais** (invariant I14) : on ignore, on
+    réactive, on ne supprime pas. Le DAO n'expose aucune méthode d'effacement, et
+    un test le vérifie par réflexion.
+  - **Aucune analyse du contenu dans l'application** (invariant I15) : pas de
+    mots-clés, pas d'échéance devinée, aucune boucle créée automatiquement.
+    L'analyse se fait dehors et revient par la supervision.
+  - **Déduplication par empreinte** : SHA-256 du texte normalisé (espaces, retours
+    et forme Unicode neutralisés ; casse et ponctuation conservées). Repartager la
+    même note informe « déjà capturé le … depuis … » au lieu de créer un doublon
+    ou de lever une erreur.
+  - **Export « lot d'analyse »** (`lot-analyse-<aaaaMMjj-HHmm>.json`) : les captures
+    brutes sortent pour être analysées ailleurs, et passent en `EXPORTEE`
+    (réversible si le lot n'a pas servi). Backup strict avant écriture.
+  - **Direct Share** : `share-target` et raccourci publié à l'exécution, pour que
+    l'application remonte dans la feuille de partage au lieu d'y croupir des
+    semaines.
+  - Migration Room **6 → 7**. 30 tests supplémentaires (127 au total).
 - **Synchronisation bidirectionnelle entre appareils** (lot AND-08), par dossier
   partagé et sans une ligne de réseau :
   - **Protocole à un écrivain par fichier** : chaque appareil dépose son état
