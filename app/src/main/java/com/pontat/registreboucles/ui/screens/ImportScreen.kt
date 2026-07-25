@@ -56,9 +56,9 @@ fun ImportScreen(vm: BoucleViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Marque Mnemosyne : elle prend la couleur d'accent du thème courant.
+        // Marque Mnemosyne en grand (trait fin) : prend la couleur d'accent du thème.
         Icon(
-            painter = painterResource(R.drawable.ic_mnemosyne),
+            painter = painterResource(R.drawable.ic_mnemosyne_grand),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(72.dp).padding(bottom = 8.dp)

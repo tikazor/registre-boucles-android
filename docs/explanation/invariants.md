@@ -296,7 +296,7 @@ simplifier » dans `statutTypé()`.
 
 ## Comment savoir si un invariant est cassé
 
-**1. Lancer les tests.** `./gradlew test` — 50 tests. Correspondance
+**1. Lancer les tests.** `./gradlew test` — 55 tests. Correspondance
 invariant → tests qui tomberaient :
 
 | Invariant | Tests qui tomberaient |

@@ -33,9 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.formaterDateHeure
-import com.pontat.registreboucles.ui.theme.Marine
-import com.pontat.registreboucles.ui.theme.Teal
-import com.pontat.registreboucles.ui.theme.Warn
+import com.pontat.registreboucles.ui.theme.Mnemosyne
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,9 +54,9 @@ fun JournalScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Marine,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Mnemosyne.couleurs.barre,
+                    titleContentColor = Mnemosyne.couleurs.surBarre,
+                    navigationIconContentColor = Mnemosyne.couleurs.surBarre
                 )
             )
         }
@@ -105,9 +103,9 @@ fun JournalScreen(
 @Composable
 private fun BadgeType(type: String) {
     val couleur = when (type) {
-        JournalType.PREUVE.name -> Teal
-        JournalType.DEFAUT.name -> Warn
-        else -> Marine
+        JournalType.PREUVE.name -> Mnemosyne.couleurs.accent
+        JournalType.DEFAUT.name -> Mnemosyne.couleurs.bientot
+        else -> Mnemosyne.couleurs.texteDoux
     }
     val libelle = JournalType.entries.firstOrNull { it.name == type }?.libelle ?: type
     Surface(color = couleur, shape = RoundedCornerShape(50), contentColor = Color.White) {

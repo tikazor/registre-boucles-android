@@ -11,13 +11,26 @@ commits **par lot de travail**, pas par commit.
 
 ## [Non publié]
 
+### Changed
+- **Charte graphique « Encre & Patine »** (piste 1a de la proposition
+  graphique) : la barre de titre passe en Encre `#0B1620`, la couleur de fond de
+  l'icône — l'application et son icône forment désormais la même famille. Les
+  actions passent en patine (`#3E7A6C` en clair, `#79B4A6` en sombre), les
+  échéances proches en bronze, les retards en `#B3544A` / `#D08379`. Les
+  pastilles d'action deviennent des disques teintés au lieu de cercles bordés.
+  La barre système suit l'Encre.
+  Conséquence technique : les accents ne sont plus des constantes globales
+  (ils diffèrent entre clair et sombre) mais sont fournis par le thème via
+  `Mnemosyne.couleurs`.
+
 ### Added
 - **Nouveau logo Mnemosyne** (double spirale, la goutte pénètre la première
   onde) : icône de lancement adaptative — marque Pierre `#E4E7E2` sur fond
   Encre `#0B1620`, dessinée en vecteur (net à toutes les densités, couche
   `monochrome` pour les icônes thématisées d'Android 13+). La marque apparaît
-  aussi dans la barre de titre et sur l'écran de premier lancement. Sources du
-  jeu d'icônes conservées dans `design/mnemosyne-icones/`.
+  aussi dans la barre de titre (trait 2,6, palier « 20 px » de la proposition
+  graphique) et sur l'écran de premier lancement (trait 1,2). Sources du jeu
+  d'icônes conservées dans `design/mnemosyne-icones/`.
 - **Tableau de bord cliquable** : les trois tuiles (« Ouvertes », « En retard »,
   « ≤ 7 jours ») deviennent des filtres. Un appui filtre la liste, un second
   revient à « Toutes ». La tuile active est signalée par un liseré et un fond
@@ -29,6 +42,11 @@ commits **par lot de travail**, pas par commit.
   et `AGENTS.md` (contrat pour les futures sessions de travail).
 
 ### Fixed
+- **Badges des statuts `proposee` et `rejetee`** : ils n'avaient ni libellé
+  accentué (« Proposee ») ni couleur propre — une boucle **rejetée** portait la
+  couleur du badge « Ouverte ». Elles ont désormais leur libellé (« Proposée »,
+  « Rejetée ») et leur couleur ; un statut inconnu prend la couleur neutre des
+  boucles fermées au lieu de celle d'« ouverte ».
 - **Doublon du tableau de bord** : « Ouvertes » était affiché deux fois, en tuile
   et en filtre. La rangée de filtres ne porte plus que « Toutes » et
   « Fermées » ; chaque libellé apparaît désormais exactement une fois.

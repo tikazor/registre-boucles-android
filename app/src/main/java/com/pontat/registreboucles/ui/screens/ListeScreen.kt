@@ -106,11 +106,7 @@ import com.pontat.registreboucles.ui.formaterDate
 import com.pontat.registreboucles.ui.formaterDateHeure
 import com.pontat.registreboucles.ui.libelleStatut
 import com.pontat.registreboucles.R
-import com.pontat.registreboucles.ui.theme.Alerte
-import com.pontat.registreboucles.ui.theme.Marine
-import com.pontat.registreboucles.ui.theme.MarquePierre
-import com.pontat.registreboucles.ui.theme.Teal
-import com.pontat.registreboucles.ui.theme.Warn
+import com.pontat.registreboucles.ui.theme.Mnemosyne
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
@@ -245,8 +241,8 @@ fun ListeScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_mnemosyne),
                             contentDescription = null,
-                            tint = MarquePierre,
-                            modifier = Modifier.size(26.dp)
+                            tint = Mnemosyne.couleurs.logoBarre,
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -300,17 +296,17 @@ fun ListeScreen(
                 },
                 // En-tête marine fixe dans les deux thèmes.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Marine,
-                    titleContentColor = Color.White,
-                    actionIconContentColor = Color.White
+                    containerColor = Mnemosyne.couleurs.barre,
+                    titleContentColor = Mnemosyne.couleurs.surBarre,
+                    actionIconContentColor = Mnemosyne.couleurs.surBarre
                 )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { creationOuverte = true },
-                containerColor = Teal,
-                contentColor = Color.White,
+                containerColor = Mnemosyne.couleurs.fab,
+                contentColor = Mnemosyne.couleurs.surFab,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Créer une boucle")
@@ -335,11 +331,11 @@ fun ListeScreen(
                 ) { basculer(FiltreStatut.OUVERTES) }
                 StatTile(
                     FiltreStatut.EN_RETARD.libelle, compteurs[FiltreStatut.EN_RETARD] ?: 0,
-                    Alerte, filtre == FiltreStatut.EN_RETARD, Modifier.weight(1f)
+                    Mnemosyne.couleurs.retard, filtre == FiltreStatut.EN_RETARD, Modifier.weight(1f)
                 ) { basculer(FiltreStatut.EN_RETARD) }
                 StatTile(
                     FiltreStatut.BIENTOT.libelle, compteurs[FiltreStatut.BIENTOT] ?: 0,
-                    Warn, filtre == FiltreStatut.BIENTOT, Modifier.weight(1f)
+                    Mnemosyne.couleurs.bientot, filtre == FiltreStatut.BIENTOT, Modifier.weight(1f)
                 ) { basculer(FiltreStatut.BIENTOT) }
             }
 
@@ -513,7 +509,7 @@ fun ListeScreen(
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { vm.confirmerEcrasement() }) { Text("Écraser", color = Alerte) }
+                    TextButton(onClick = { vm.confirmerEcrasement() }) { Text("Écraser", color = Mnemosyne.couleurs.retard) }
                     TextButton(onClick = { vm.annulerImport() }) { Text("Annuler") }
                 }
             }
@@ -569,8 +565,8 @@ private fun StatTile(
 private fun SegmentFiltre(
     label: String, compte: Int, actif: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit
 ) {
-    val fond = if (actif) Marine else MaterialTheme.colorScheme.surface
-    val texte = if (actif) Color.White else MaterialTheme.colorScheme.primary
+    val fond = if (actif) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val texte = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Row(
         modifier = modifier
             .height(40.dp)
@@ -653,8 +649,8 @@ private fun CarteBoucle(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     RondIcone(Icons.Filled.Add, MaterialTheme.colorScheme.primary, "Ajouter un mouvement", onDemandeMouvement)
-                    RondIcone(Icons.Filled.Edit, Marine, "Modifier", onModifier)
-                    if (ouverte) RondIcone(Icons.Filled.Check, Teal, "Clôturer", onCloturer)
+                    RondIcone(Icons.Filled.Edit, Mnemosyne.couleurs.accent, "Modifier", onModifier)
+                    if (ouverte) RondIcone(Icons.Filled.Check, Mnemosyne.couleurs.accent, "Clôturer", onCloturer)
                 }
                 Icon(
                     Icons.Filled.KeyboardArrowDown,
@@ -679,8 +675,8 @@ private fun CarteBoucle(
 private fun TexteEcheance(boucle: Boucle, ouverte: Boolean) {
     val j = boucle.echeance?.let { joursRestants(it) }
     val couleur = when {
-        ouverte && j != null && j < 0 -> Alerte
-        ouverte && j != null && j <= 7 -> Warn
+        ouverte && j != null && j < 0 -> Mnemosyne.couleurs.retard
+        ouverte && j != null && j <= 7 -> Mnemosyne.couleurs.bientot
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val gras = ouverte && j != null && j <= 7
@@ -723,8 +719,8 @@ private fun ContenuDeplie(
             ChampInfo("Statut", libelleStatut(boucle.statut), Modifier.weight(1f))
         }
 
-        Encart("Preuve attendue", boucle.preuveAttendue, Teal, Teal.copy(alpha = 0.08f))
-        boucle.blocage?.let { Encart("Blocage", it, Warn, Warn.copy(alpha = 0.09f)) }
+        Encart("Preuve attendue", boucle.preuveAttendue, Mnemosyne.couleurs.accent, Mnemosyne.couleurs.accentDoux)
+        boucle.blocage?.let { Encart("Blocage", it, Mnemosyne.couleurs.bientot, Mnemosyne.couleurs.bientot.copy(alpha = 0.12f)) }
 
         ChampInfo("Impact", boucle.impact)
         boucle.defaut?.let { ChampInfo("Action par défaut", it) }
@@ -739,7 +735,10 @@ private fun ContenuDeplie(
                 Button(
                     onClick = onCloturer,
                     shape = RoundedCornerShape(19.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Marine, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     modifier = Modifier.weight(1f)
                 ) { Text("Clôturer", fontSize = 12.5.sp) }
             }
@@ -792,10 +791,11 @@ private fun ContenuDeplie(
     }
 }
 
+@Composable
 private fun couleurMouvement(type: String): Color = when (type) {
-    "preuve" -> Teal
-    "defaut" -> Warn
-    else -> Marine
+    "preuve" -> Mnemosyne.couleurs.accent
+    "defaut" -> Mnemosyne.couleurs.bientot
+    else -> Mnemosyne.couleurs.texteDoux
 }
 
 @Composable
@@ -839,10 +839,11 @@ private fun RondIcone(
     description: String,
     onClick: () -> Unit
 ) {
+    // Pastille pleine teintée (maquette 1a) : plus douce qu'un cercle bordé.
     Box(
         Modifier
             .size(34.dp)
-            .border(1.5.dp, couleur, CircleShape)
+            .background(couleur.copy(alpha = 0.16f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -866,10 +867,10 @@ fun BadgeStatut(statut: String) {
 private fun EtiquetteInconnu() {
     Box(
         Modifier
-            .border(1.dp, Warn, RoundedCornerShape(50))
+            .border(1.dp, Mnemosyne.couleurs.bientot, RoundedCornerShape(50))
             .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
-        Text("statut inconnu", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Warn)
+        Text("statut inconnu", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Mnemosyne.couleurs.bientot)
     }
 }
 
@@ -894,14 +895,14 @@ private fun DialogMouvement(
                             Modifier
                                 .weight(1f)
                                 .height(32.dp)
-                                .background(if (actif) Teal else Color.Transparent, RoundedCornerShape(16.dp))
+                                .background(if (actif) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(16.dp))
                                 .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)))
                                 .clickable { type = valeur },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 libelle, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
-                                color = if (actif) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -925,8 +926,8 @@ private fun DialogMouvement(
 
 @Composable
 private fun PuceMilieu(label: String, actif: Boolean, onClick: () -> Unit) {
-    val fond = if (actif) Marine else MaterialTheme.colorScheme.surface
-    val texte = if (actif) Color.White else MaterialTheme.colorScheme.primary
+    val fond = if (actif) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val texte = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Box(
         Modifier
             .height(34.dp)
@@ -965,14 +966,14 @@ private fun DialogCloture(
                             Modifier
                                 .weight(1f)
                                 .height(32.dp)
-                                .background(if (actif) Teal else Color.Transparent, RoundedCornerShape(16.dp))
+                                .background(if (actif) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(16.dp))
                                 .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)))
                                 .clickable { type = t },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 t.libelle, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
-                                color = if (actif) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

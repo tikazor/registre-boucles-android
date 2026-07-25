@@ -46,19 +46,22 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.ui.couleurStatut
 import com.pontat.registreboucles.ui.libelleStatut
-import com.pontat.registreboucles.ui.theme.Alerte
-import com.pontat.registreboucles.ui.theme.Blanc
-import com.pontat.registreboucles.ui.theme.BrandSombre
-import com.pontat.registreboucles.ui.theme.EncreClair
-import com.pontat.registreboucles.ui.theme.EncreSombre
+import com.pontat.registreboucles.ui.theme.AccentClair
+import com.pontat.registreboucles.ui.theme.AccentSombre
+import com.pontat.registreboucles.ui.theme.BientotClair
+import com.pontat.registreboucles.ui.theme.BientotSombre
+import com.pontat.registreboucles.ui.theme.Pierre
+import com.pontat.registreboucles.ui.theme.RetardClair
+import com.pontat.registreboucles.ui.theme.RetardSombre
+import com.pontat.registreboucles.ui.theme.StatutFermee
+import com.pontat.registreboucles.ui.theme.TexteClair
+import com.pontat.registreboucles.ui.theme.TexteDouxClair
+import com.pontat.registreboucles.ui.theme.TexteDouxSombre
+import com.pontat.registreboucles.ui.theme.TexteSombre
 import com.pontat.registreboucles.ui.theme.FondClair
 import com.pontat.registreboucles.ui.theme.FondSombre
-import com.pontat.registreboucles.ui.theme.Marine
-import com.pontat.registreboucles.ui.theme.Neutre
 import com.pontat.registreboucles.ui.theme.SurfaceClair
 import com.pontat.registreboucles.ui.theme.SurfaceSombre
-import com.pontat.registreboucles.ui.theme.Teal
-import com.pontat.registreboucles.ui.theme.Warn
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -81,12 +84,19 @@ private fun intentBoucle(context: Context, id: String, mouvement: Boolean): Inte
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
     }
 
+/** Palette du widget, alignée sur la piste « Encre & Patine » de l'application. */
 private class PaletteWidget(sombre: Boolean) {
+    // Couleurs brutes (le widget n'a pas accès au thème Compose de l'app).
+    val accentC = if (sombre) AccentSombre else AccentClair
+    val retardC = if (sombre) RetardSombre else RetardClair
+    val bientotC = if (sombre) BientotSombre else BientotClair
+    val neutreC = StatutFermee
+
     val fond = ColorProvider(if (sombre) FondSombre else FondClair)
     val surface = ColorProvider(if (sombre) SurfaceSombre else SurfaceClair)
-    val onSurface = ColorProvider(if (sombre) EncreSombre else EncreClair)
-    val primary = ColorProvider(if (sombre) BrandSombre else Marine)
-    val secondary = ColorProvider(Neutre)
+    val onSurface = ColorProvider(if (sombre) TexteSombre else TexteClair)
+    val primary = ColorProvider(accentC)
+    val secondary = ColorProvider(if (sombre) TexteDouxSombre else TexteDouxClair)
 }
 
 class BoucleWidget : GlanceAppWidget() {
@@ -172,7 +182,7 @@ class BoucleWidget : GlanceAppWidget() {
                 Text(
                     text = "Échéance ${formaterDate(b.echeance)}",
                     maxLines = 1,
-                    style = TextStyle(color = ColorProvider(couleurEcheance(b.echeance)), fontSize = 13.sp)
+                    style = TextStyle(color = ColorProvider(couleurEcheance(b.echeance, p)), fontSize = 13.sp)
                 )
             }
 
@@ -182,14 +192,14 @@ class BoucleWidget : GlanceAppWidget() {
                 // + : ouvre l'app directement sur le formulaire d'ajout de mouvement.
                 BoutonRond(
                     icone = R.drawable.ic_widget_add,
-                    couleur = Marine,
+                    couleur = p.accentC,
                     action = actionStartActivity(intentBoucle(context, b.id, true))
                 )
                 Spacer(GlanceModifier.width(10.dp))
                 // ✓ : clôture en place (même méthode que l'app).
                 BoutonRond(
                     icone = R.drawable.ic_widget_check,
-                    couleur = Teal,
+                    couleur = p.accentC,
                     action = actionRunCallback<ClotureActionCallback>(
                         actionParametersOf(boucleIdParam to b.id)
                     )
@@ -208,7 +218,7 @@ class BoucleWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = libelleStatut(statut),
-                style = TextStyle(color = ColorProvider(Blanc), fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                style = TextStyle(color = ColorProvider(Pierre), fontWeight = FontWeight.Medium, fontSize = 12.sp)
             )
         }
     }
@@ -231,12 +241,12 @@ class BoucleWidget : GlanceAppWidget() {
         }
     }
 
-    private fun couleurEcheance(echeanceMillis: Long?): Color {
-        val j = echeanceMillis?.let { joursRestants(it) } ?: return Neutre
+    private fun couleurEcheance(echeanceMillis: Long?, p: PaletteWidget): Color {
+        val j = echeanceMillis?.let { joursRestants(it) } ?: return p.neutreC
         return when {
-            j < 0 -> Alerte
-            j <= 7 -> Warn
-            else -> Neutre
+            j < 0 -> p.retardC
+            j <= 7 -> p.bientotC
+            else -> p.neutreC
         }
     }
 

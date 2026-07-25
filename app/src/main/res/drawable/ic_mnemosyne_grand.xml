@@ -1,20 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Marque Mnemosyne pour la BARRE DE TITRE (~20-24 dp). Trait 2,6 : palier de la
-  proposition graphique « Confort graphique Mnemosyne » (1,2 à 52 px · 1,7 à
-  32 px · 2,6 à 20 px), plus épais que le palier 2,0 du README du jeu d'icônes —
-  la maquette applicative prime ici, elle montre la marque en contexte.
-  Pour les grandes tailles, voir ic_mnemosyne_grand.xml (trait 1,2).
-
-  Les couleurs déclarées ici sont neutres : en Compose, `Icon(...)` applique
-  son propre `tint`, ce qui permet à la marque de suivre la couleur du texte
-  parent (l'équivalent du `currentColor` du SVG d'origine).
-
-  Pour l'icône de lancement, voir ic_launcher_foreground.xml (trait 1,2).
+  Marque Mnemosyne en GRAND (écran d'accueil, ~52-72 dp). Trait 1,2 : palier
+  « 52 px » de la proposition graphique, où la spirale complète respire.
+  Pour la barre de titre, voir ic_mnemosyne.xml (trait 2,6).
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
+    android:width="72dp"
+    android:height="72dp"
     android:viewportWidth="64"
     android:viewportHeight="64">
 
@@ -27,7 +19,7 @@
     <path
         android:fillColor="#00000000"
         android:strokeColor="#E4E7E2"
-        android:strokeWidth="2.6"
+        android:strokeWidth="1.2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M27,37.25a7,2.8,0,0,1,14,0a11,4.4,0,0,1,-22,0a15,6,0,0,1,30,0a19,7.6,0,0,1,-38,0" />
@@ -36,7 +28,7 @@
     <path
         android:fillColor="#00000000"
         android:strokeColor="#E4E7E2"
-        android:strokeWidth="2.6"
+        android:strokeWidth="1.2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M37,37.25a7,2.8,0,0,0,-14,0a11,4.4,0,0,0,22,0a15,6,0,0,0,-30,0a19,7.6,0,0,0,38,0" />

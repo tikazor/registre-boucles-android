@@ -2,7 +2,8 @@
     <!-- Thème de fenêtre (splash). Le rendu réel est piloté par Compose. -->
     <style name="Theme.RegistreBoucles" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/fond</item>
-        <item name="android:statusBarColor">@color/marine_fonce</item>
+        <!-- Barre système en Encre, comme la barre de titre de l'app (piste 1a). -->
+        <item name="android:statusBarColor">@color/encre</item>
         <item name="android:navigationBarColor">@color/fond</item>
     </style>
 </resources>

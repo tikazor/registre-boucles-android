@@ -76,4 +76,4 @@ précèdent la publication.
 
 Elle ne lance aucun test d'instrumentation (pas d'émulateur), donc ni test
 d'interface ni test de migration Room. Voir la dette assumée dans
-[`../explanation/architecture.md`](../explanation/architecture.md) §8.
+[`../explanation/architecture.md`](../explanation/architecture.md) §9.

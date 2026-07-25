@@ -49,9 +49,7 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.formaterDate
-import com.pontat.registreboucles.ui.theme.Alerte
-import com.pontat.registreboucles.ui.theme.Marine
-import com.pontat.registreboucles.ui.theme.Teal
+import com.pontat.registreboucles.ui.theme.Mnemosyne
 import kotlinx.coroutines.launch
 
 /**
@@ -91,9 +89,9 @@ fun SupervisionScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Marine,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Mnemosyne.couleurs.barre,
+                    titleContentColor = Mnemosyne.couleurs.surBarre,
+                    navigationIconContentColor = Mnemosyne.couleurs.surBarre
                 )
             )
         }
@@ -199,7 +197,10 @@ private fun CarteProposition(
             Button(
                 onClick = onAccepter,
                 shape = RoundedCornerShape(19.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 modifier = Modifier.weight(1f)
             ) { Text("Accepter", fontSize = 12.5.sp) }
             OutlinedButton(
@@ -210,7 +211,7 @@ private fun CarteProposition(
             OutlinedButton(
                 onClick = onRejeter,
                 shape = RoundedCornerShape(19.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Alerte),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Mnemosyne.couleurs.retard),
                 modifier = Modifier.weight(1f)
             ) { Text("Rejeter", fontSize = 12.5.sp) }
         }
@@ -221,7 +222,7 @@ private fun CarteProposition(
 fun EtiquetteIA() {
     Box(
         Modifier
-            .background(Marine, RoundedCornerShape(50))
+            .background(Mnemosyne.couleurs.accent, RoundedCornerShape(50))
             .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
         Text("IA", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -266,7 +267,7 @@ private fun DialogMotifRejet(
         },
         confirmButton = {
             TextButton(onClick = { onValider(motif.trim()) }, enabled = motif.isNotBlank()) {
-                Text("Rejeter", color = Alerte)
+                Text("Rejeter", color = Mnemosyne.couleurs.retard)
             }
         },
         dismissButton = { TextButton(onClick = onAnnuler) { Text("Annuler") } }

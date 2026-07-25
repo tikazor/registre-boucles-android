@@ -101,7 +101,7 @@ Le cœur des règles est écrit en fonctions **sans dépendance Android** :
 
 **Pourquoi.** Ces fonctions sont testables en **JVM pure**, sans émulateur ni
 appareil : `./gradlew test` tourne en quelques secondes et **en CI**, sur chaque
-push. C'est ce qui permet aux 50 tests de garder les invariants. Un test
+push. C'est ce qui permet aux 55 tests de garder les invariants. Un test
 d'instrumentation Android aurait coûté un émulateur en CI et n'aurait
 probablement jamais tourné.
 
@@ -159,7 +159,27 @@ dans la sauvegarde système Android (`backup_rules.xml`,
 
 ---
 
-## 7. Persistance annexe
+## 7. Thème et couleurs
+
+Charte « Encre & Patine ». Deux niveaux :
+
+- les emplacements **Material 3** (`MaterialTheme.colorScheme`) pour tout ce qui
+  a un équivalent standard : `primary` = patine, `background`, `surface`,
+  `outline`, `onSurfaceVariant`, `error` ;
+- un **`CompositionLocal`** (`Mnemosyne.couleurs`, cf. `ui/theme/Theme.kt`) pour
+  les accents propres à la marque, qui **diffèrent entre clair et sombre** et
+  n'ont pas d'emplacement M3 : `barre`, `surBarre`, `logoBarre`, `accent`,
+  `accentDoux`, `retard`, `bientot`, `texteDoux`, `separateur`, `fab`, `surFab`.
+
+C'est ce second niveau qui remplace les anciennes constantes globales
+(`Marine`, `Teal`, `Alerte`, `Warn`) : celles-ci étaient fixes dans les deux
+thèmes, ce que la charte actuelle ne permet plus.
+
+Le **widget** ne peut pas lire le thème Compose de l'app (autre process, pas de
+`ViewModel`) : il porte sa propre `PaletteWidget(sombre)`, alignée sur les mêmes
+valeurs. Toute évolution de palette doit être répercutée aux deux endroits.
+
+## 8. Persistance annexe
 
 `SharedPreferences` (`registre-prefs`) pour le mode sombre et les valeurs des
 listes Type/Tiers (`ListeOptions`, sérialisées en JSON). Un `crash.log` est
@@ -169,7 +189,7 @@ listes Type/Tiers (`ListeOptions`, sérialisées en JSON). Un `crash.log` est
 
 ---
 
-## 8. Dette technique assumée
+## 9. Dette technique assumée
 
 Elle est nommée ici pour ne pas être redécouverte :
 

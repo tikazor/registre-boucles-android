@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.ui.BoucleViewModel
-import com.pontat.registreboucles.ui.theme.Marine
+import com.pontat.registreboucles.ui.theme.Mnemosyne
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -87,9 +87,9 @@ fun ConfigScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Marine,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Mnemosyne.couleurs.barre,
+                    titleContentColor = Mnemosyne.couleurs.surBarre,
+                    navigationIconContentColor = Mnemosyne.couleurs.surBarre
                 )
             )
         }

@@ -36,8 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pontat.registreboucles.data.ConflitFusion
 import com.pontat.registreboucles.ui.BoucleViewModel
-import com.pontat.registreboucles.ui.theme.Marine
-import com.pontat.registreboucles.ui.theme.Teal
+import com.pontat.registreboucles.ui.theme.Mnemosyne
 
 /**
  * Arbitrage de la fusion : pour chaque boucle existante dont un champ scalaire
@@ -65,9 +64,9 @@ fun FusionScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Marine,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Mnemosyne.couleurs.barre,
+                    titleContentColor = Mnemosyne.couleurs.surBarre,
+                    navigationIconContentColor = Mnemosyne.couleurs.surBarre
                 )
             )
         }
@@ -148,7 +147,7 @@ private fun CarteConflit(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                 )
                 Text("• existant : ${d.existant ?: "—"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text("• entrant : ${d.entrant ?: "—"}", fontSize = 12.sp, color = Teal)
+                Text("• entrant : ${d.entrant ?: "—"}", fontSize = 12.sp, color = Mnemosyne.couleurs.accent)
             }
         }
         Row(
@@ -163,8 +162,8 @@ private fun CarteConflit(
 
 @Composable
 private fun OptionChoix(label: String, actif: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val fond = if (actif) Marine else MaterialTheme.colorScheme.surface
-    val texte = if (actif) Color.White else MaterialTheme.colorScheme.primary
+    val fond = if (actif) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val texte = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Box(
         modifier
             .background(fond, RoundedCornerShape(11.dp))

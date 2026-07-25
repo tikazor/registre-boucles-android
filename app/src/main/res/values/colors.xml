@@ -1,15 +1,17 @@
 <resources>
-    <!-- Système marine / sarcelle -->
-    <color name="marine">#1E3A5F</color>
-    <color name="marine_fonce">#152B47</color>
-    <color name="teal">#2E7D74</color>
-    <color name="fond">#ECEFF3</color>
+    <!-- Palette Mnemosyne, piste « 1a — Encre & Patine ».
+         Ces valeurs ne servent qu'aux ressources Android (splash, barre système,
+         icône, widget de chargement) : le rendu de l'app est piloté par Compose
+         (ui/theme/Color.kt, qui porte les mêmes valeurs). -->
+    <color name="encre">#0B1620</color>
+    <color name="pierre">#E4E7E2</color>
+    <color name="patine">#3E7A6C</color>
+    <color name="bronze">#C99A5B</color>
+    <color name="filet">#24394A</color>
 
-    <!-- Palette de la marque Mnemosyne (jeu d'icônes). Distincte de la charte
-         marine/sarcelle de l'interface : elle ne sert qu'au logo. -->
-    <color name="marque_encre">#0B1620</color>
-    <color name="marque_pierre">#E4E7E2</color>
+    <!-- Fond de l'application en thème clair (pierre légèrement grisée). -->
+    <color name="fond">#E9ECE8</color>
 
     <!-- Fond de l'adaptive icon : Encre, comme png/maskable-512.png. -->
-    <color name="ic_launcher_background">@color/marque_encre</color>
+    <color name="ic_launcher_background">@color/encre</color>
 </resources>
