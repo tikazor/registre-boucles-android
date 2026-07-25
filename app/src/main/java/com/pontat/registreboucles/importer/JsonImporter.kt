@@ -31,6 +31,9 @@ data class ImportResult(
     val journaux: List<Journal>,
     val suppressions: List<Suppression> = emptyList(),
     val codeAppareilSource: String? = null,
+    /** `exporteLe` déclaré par l'émetteur (epoch millis) ; null hors v3. Sert au
+     *  garde-fou d'horloge de la synchronisation. */
+    val exporteLe: Long? = null,
     val idsNonConformes: List<String> = emptyList()
 )
 
@@ -144,6 +147,7 @@ object JsonImporter {
             journaux = journaux,
             suppressions = suppressions,
             codeAppareilSource = racine.codeAppareil,
+            exporteLe = racine.exporteLe,
             idsNonConformes = idsNonConformes
         )
     }

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.glance.appwidget.updateAll
 import com.pontat.registreboucles.importer.BackupExporter
 import com.pontat.registreboucles.importer.JsonExporter
+import com.pontat.registreboucles.importer.JsonImporter
 import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
@@ -377,6 +378,208 @@ class BoucleRepository(
             Log.e(TAG, "Export du dernier backup impossible", e)
             e.message ?: "Export impossible."
         }
+    }
+
+    // ── Synchronisation par dossier partagé (AND-08) ──
+    //
+    // Aucun réseau : le dossier est un dossier local que l'application de synchro
+    // de l'utilisateur réplique. Nous n'y écrivons QUE notre propre fichier
+    // `etat-<CODE>.json` (invariant I11), ce qui supprime tout conflit d'écriture.
+
+    private val dossierSaf by lazy { DossierSyncSaf(appContext) }
+
+    /** Dossier partagé choisi, ou null s'il n'a pas encore été désigné. */
+    fun lireDossierSync(): Uri? =
+        prefs.getString("dossier_sync", null)?.let(Uri::parse)
+
+    fun ecrireDossierSync(uri: Uri) {
+        prefs.edit().putString("dossier_sync", uri.toString()).apply()
+    }
+
+    fun nomDossierSync(): String? = lireDossierSync()?.let { dossierSaf.nomDossier(it) }
+
+    fun observerEvenementsSync(): Flow<List<EvenementSync>> = dao.observerEvenementsSync()
+
+    suspend fun dernierEvenementSync(): EvenementSync? = dao.dernierEvenementSync()
+
+    /** État local complet, tel qu'il part dans notre fichier ou entre en fusion. */
+    private suspend fun etatLocal(): EtatRegistre = EtatRegistre(
+        boucles = dao.toutesLesBoucles(),
+        mouvements = dao.tousLesMouvements(),
+        journaux = dao.tousLesJournaux(),
+        suppressions = dao.toutesLesSuppressions()
+    )
+
+    /**
+     * Écrit notre fichier d'état dans le dossier partagé (format v3 complet).
+     * Appelé après chaque fusion et par le bouton de synchronisation.
+     */
+    suspend fun ecrireEtatLocal() {
+        val dossier = lireDossierSync() ?: throw SyncException("Aucun dossier partagé choisi.")
+        val code = lireCodeAppareil() ?: throw SyncException("Aucun code appareil défini.")
+        val etat = etatLocal()
+        val contenu = JsonExporter.serialiser(
+            etat.boucles, etat.mouvements, etat.journaux, etat.suppressions,
+            code, System.currentTimeMillis()
+        )
+        dossierSaf.ecrireEtat(dossier, code, contenu)
+    }
+
+    /**
+     * Compte rendu d'une synchronisation manuelle : une entrée de journal par
+     * fichier lu, les conflits restant à arbitrer, et l'éventuelle interruption
+     * pour horloge distante suspecte (à confirmer explicitement).
+     */
+    data class RapportSync(
+        val evenements: List<EvenementSync>,
+        val conflits: List<ConflitSync>,
+        val avanceHorloge: Long? = null,
+        val appareilEnAvance: String? = null,
+        val etatEcrit: Boolean = false
+    )
+
+    /**
+     * Synchronisation MANUELLE. Ordre strict :
+     * 1. backup STRICT forcé (échec = rien n'est fusionné, invariant I12) ;
+     * 2. pour chaque `etat-*.json` d'un autre appareil : lecture, calcul du plan
+     *    (fonction pure), application transactionnelle avec sa trace au journal ;
+     * 3. réécriture de notre propre fichier d'état.
+     *
+     * Un fichier illisible ou tronqué est consigné en ECHEC et ignoré : jamais de
+     * fusion partielle. [confirmeHorloge] rejoue les fichiers écartés par le
+     * garde-fou d'horloge, après confirmation explicite de l'utilisateur.
+     */
+    suspend fun synchroniser(confirmeHorloge: Boolean = false): RapportSync {
+        val dossier = lireDossierSync() ?: throw SyncException("Aucun dossier partagé choisi.")
+        val code = lireCodeAppareil() ?: throw SyncException("Aucun code appareil défini.")
+
+        creerBackupStrict(forcer = true)   // I12 : jamais de fusion sans filet
+
+        val fichiers = dossierSaf.listerEtats(dossier, code)
+        val evenements = mutableListOf<EvenementSync>()
+        val conflits = mutableListOf<ConflitSync>()
+        var avance: Long? = null
+        var appareilEnAvance: String? = null
+
+        for (fichier in fichiers) {
+            val maintenant = System.currentTimeMillis()
+            val distant = try {
+                val res = JsonImporter.parse(dossierSaf.lire(fichier.uri))
+                EtatDistant(
+                    // Le nom du fichier fait foi sur l'émetteur : c'est lui qui
+                    // détermine quel appareil a le droit d'écrire ce fichier.
+                    codeAppareil = fichier.codeAppareil,
+                    exporteLe = res.exporteLe,
+                    etat = EtatRegistre(res.boucles, res.mouvements, res.journaux, res.suppressions)
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Fichier d'état illisible (${fichier.nom})", e)
+                val echec = EvenementSync(
+                    horodatage = maintenant,
+                    appareilDistant = fichier.codeAppareil,
+                    fichierLu = fichier.nom,
+                    exporteLeDistant = null,
+                    bouclesAjoutees = 0, bouclesFusionnees = 0, bouclesIgnorees = 0,
+                    mouvementsAjoutes = 0, journauxAjoutes = 0, conflits = 0,
+                    resultat = ResultatSync.ECHEC.valeurStockee(),
+                    detail = "Fichier illisible : ${e.message ?: e.javaClass.simpleName}"
+                )
+                dao.insererEvenementSync(echec)
+                evenements += echec
+                continue
+            }
+
+            val plan = calculerFusionSync(etatLocal(), distant, maintenant, confirmeHorloge)
+            val evenement = evenementDepuisPlan(plan, distant, fichier.nom, maintenant)
+
+            if (plan.estInterrompu() && !confirmeHorloge) {
+                dao.insererEvenementSync(evenement)
+                evenements += evenement
+                avance = plan.avanceHorloge
+                appareilEnAvance = distant.codeAppareil
+                continue
+            }
+
+            dao.appliquerPlanSync(
+                bouclesAInserer = plan.bouclesAInserer,
+                bouclesAMettreAJour = plan.bouclesAMettreAJour,
+                mouvements = plan.mouvementsAInserer,
+                // I1 vaut aussi pour les boucles reçues : une boucle terminale sans
+                // journal reçoit une entrée par défaut.
+                journaux = completerJournaux(
+                    plan.bouclesAInserer + plan.bouclesAMettreAJour, plan.journauxAInserer
+                ),
+                tombstonesAInserer = plan.suppressionsAInserer,
+                tombstonesARetirer = plan.suppressionsARetirer,
+                evenement = evenement
+            )
+            evenements += evenement
+            conflits += plan.conflits
+        }
+
+        // Notre état repart à jour, même si aucun fichier distant n'a été lu :
+        // c'est ainsi que le premier appairage se fait (on dépose notre fichier).
+        ecrireEtatLocal()
+        rafraichirWidget()
+        return RapportSync(evenements, conflits, avance, appareilEnAvance, etatEcrit = true)
+    }
+
+    /**
+     * Arbitrage « garder la version locale ». On ne réécrit pas les champs : on
+     * réestampille la boucle, ce qui la rend franchement plus récente que la
+     * version distante. À la prochaine synchronisation, la règle du plus récent
+     * (4b) fera adopter NOTRE version par l'autre appareil — le conflit se résout
+     * donc par convergence, sans écriture arbitraire.
+     */
+    suspend fun arbitrerGarderLocal(boucleId: String) {
+        val boucle = dao.obtenir(boucleId) ?: return
+        dao.mettreAJour(estampiller(boucle))
+        ecrireEtatLocal()
+        rafraichirWidget()
+    }
+
+    /**
+     * Arbitrage « prendre la version distante ». Adopte les champs entrants, trace
+     * chaque écrasement (I13) et réestampille : notre base et le distant
+     * convergent, et l'autre appareil verra que la décision a été prise ici.
+     */
+    suspend fun arbitrerPrendreDistant(entrante: Boucle, codeDistant: String) {
+        val locale = dao.obtenir(entrante.id) ?: return
+        val diffs = diffsScalaires(locale, entrante)
+        val maintenant = System.currentTimeMillis()
+        val fusionnee = locale.copy(
+            type = entrante.type, titre = entrante.titre, origine = entrante.origine,
+            echeance = entrante.echeance, tiers = entrante.tiers,
+            preuveAttendue = entrante.preuveAttendue, blocage = entrante.blocage,
+            impact = entrante.impact, defaut = entrante.defaut, statut = entrante.statut,
+            milieu = entrante.milieu
+            // id / creee / source préservés (règle 4c) ; l'estampille est locale,
+            // puisque la décision d'arbitrage, elle, a été prise ici.
+        )
+        dao.mettreAJour(estampiller(fusionnee, maintenant))
+        dao.insererMouvements(
+            diffs.map {
+                Mouvement(
+                    boucleId = entrante.id, date = maintenant, type = "declaration",
+                    contenu = "${it.champ} : \"${it.existant ?: ""}\" remplacé par " +
+                        "\"${it.entrant ?: ""}\" (arbitrage d'un conflit avec $codeDistant)"
+                )
+            }
+        )
+        dao.insererJournaux(completerJournaux(listOf(fusionnee), emptyList()))
+        ecrireEtatLocal()
+        rafraichirWidget()
+    }
+
+    /**
+     * Arbitrage d'une suppression distante : « supprimer ici aussi ». Passe par le
+     * chemin de suppression tracé habituel (tombstone locale), donc la décision
+     * repart vers l'autre appareil comme une suppression ordinaire.
+     */
+    suspend fun arbitrerSupprimerIci(boucleId: String) {
+        val boucle = dao.obtenir(boucleId) ?: return
+        supprimer(boucle)
+        ecrireEtatLocal()
     }
 
     /** Statistiques pour le widget. */
