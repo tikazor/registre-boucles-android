@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.glance.appwidget.updateAll
 import com.pontat.registreboucles.importer.BackupExporter
 import com.pontat.registreboucles.importer.JsonExporter
+import com.pontat.registreboucles.importer.LotAnalyseExporter
 import com.pontat.registreboucles.importer.JsonImporter
 import com.pontat.registreboucles.widget.BoucleWidget
 import kotlinx.coroutines.flow.Flow
@@ -377,6 +378,121 @@ class BoucleRepository(
         } catch (e: Exception) {
             Log.e(TAG, "Export du dernier backup impossible", e)
             e.message ?: "Export impossible."
+        }
+    }
+
+    // ── Captures : boîte de réception des notes brutes (AND-06) ──
+    //
+    // Aucune méthode de suppression n'est exposée, ici comme dans le DAO : une
+    // capture est marquée IGNOREE, jamais effacée (invariant I14). Et aucun
+    // traitement ne lit le contenu pour en déduire quoi que ce soit : l'analyse
+    // est hors de l'app (invariant I15).
+
+    fun observerCaptures(): Flow<List<Capture>> = dao.observerCaptures()
+
+    fun observerNombreCapturesBrutes(): Flow<Int> = dao.observerNombreCapturesBrutes()
+
+    suspend fun capture(id: String): Capture? = dao.capture(id)
+
+    /**
+     * Nom de l'appareil porté par les captures. Le code appareil d'AND-07 fait
+     * foi quand il existe ; sinon le nom libre saisi dans Configuration ; sinon
+     * « LOCAL ». Ce dernier cas est réel : on peut partager du texte vers l'app
+     * avant de l'avoir ouverte une seule fois, donc avant l'écran d'identité.
+     */
+    fun nomAppareilCapture(): String =
+        lireCodeAppareil()
+            ?: prefs.getString("nom_appareil", null)?.trim()?.takeIf { it.isNotBlank() }
+            ?: "LOCAL"
+
+    /** Nom libre de repli, utilisé seulement en l'absence de code appareil. */
+    fun ecrireNomAppareil(nom: String) {
+        prefs.edit().putString("nom_appareil", nom.trim()).apply()
+    }
+
+    /** Issue d'une tentative de capture, pour que l'UI dise ce qui s'est passé. */
+    sealed interface ResultatCapture {
+        data class Ajoutee(val capture: Capture) : ResultatCapture
+        /** Empreinte déjà présente : rien n'est inséré, et ce n'est pas une erreur. */
+        data class Doublon(val existante: Capture) : ResultatCapture
+        data class Refusee(val motif: String) : ResultatCapture
+    }
+
+    /**
+     * Enregistre une note brute. Le texte est tronqué au-delà de
+     * [TAILLE_MAX_CAPTURE] — en le signalant dans le contenu — puis dédupliqué
+     * par empreinte : si la même note est déjà là, on informe au lieu de créer un
+     * doublon ou de lever une erreur (il n'y a pas de contrainte UNIQUE en base,
+     * précisément pour pouvoir répondre proprement).
+     *
+     * Le contenu n'est ni analysé, ni interprété, ni découpé : seulement stocké.
+     */
+    suspend fun enregistrerCapture(
+        contenu: String,
+        titre: String? = null,
+        appSource: String? = null,
+        maintenant: Long = System.currentTimeMillis()
+    ): ResultatCapture {
+        // La décision (tronquer / refuser / dédupliquer / créer) est calculée par
+        // une fonction pure, testée en JVM. Ici, seulement la lecture et l'écriture.
+        val empreinte = empreinteCapture(tronquerCapture(contenu))
+        val preparation = preparerCapture(
+            contenu = contenu,
+            titre = titre,
+            appSource = appSource,
+            appareil = nomAppareilCapture(),
+            maintenant = maintenant,
+            existanteMemeEmpreinte = dao.captureParEmpreinte(empreinte),
+            idsPris = dao.tousLesIdsCaptures().toSet()
+        )
+        return when (preparation) {
+            is PreparationCapture.Refusee -> ResultatCapture.Refusee(preparation.motif)
+            is PreparationCapture.Doublon -> ResultatCapture.Doublon(preparation.existante)
+            is PreparationCapture.ACreer -> {
+                dao.insererCapture(preparation.capture)
+                ResultatCapture.Ajoutee(preparation.capture)
+            }
+        }
+    }
+
+    /** Écarte une capture (réversible). Le contenu brut reste intact. */
+    suspend fun ignorerCapture(id: String) {
+        dao.capture(id)?.let { dao.mettreAJourCapture(it.versIgnoree()) }
+    }
+
+    /** Ramène une capture EXPORTEE ou IGNOREE à l'état BRUTE. */
+    suspend fun reactiverCapture(id: String) {
+        dao.capture(id)?.let { dao.mettreAJourCapture(it.versBrute()) }
+    }
+
+    /** Lie la boucle produite et passe la capture en TRAITEE (jamais sans lien). */
+    suspend fun lierCaptureABoucle(captureId: String, boucleId: String) {
+        dao.capture(captureId)?.let { dao.mettreAJourCapture(it.versTraitee(boucleId)) }
+    }
+
+    /**
+     * Exporte un lot d'analyse : les captures demandées (par défaut toutes les
+     * BRUTE) vers l'URI choisi, puis passage en EXPORTEE — réversible.
+     * Backup STRICT avant écriture, comme toute opération d'écriture.
+     * Renvoie null si succès, sinon un message d'erreur réel.
+     */
+    suspend fun exporterLotAnalyse(uri: Uri, ids: Set<String>? = null): String? {
+        return try {
+            creerBackupStrict()
+            val brutes = dao.capturesParStatut(StatutCapture.BRUTE.valeurStockee())
+            val lot = if (ids == null) brutes else brutes.filter { it.id in ids }
+            if (lot.isEmpty()) return "Aucune capture brute à exporter."
+            val contenu = LotAnalyseExporter.serialiser(lot, System.currentTimeMillis())
+            val flux = appContext.contentResolver.openOutputStream(uri)
+                ?: return "Impossible d'ouvrir le fichier de destination."
+            flux.use { it.write(contenu.toByteArray(Charsets.UTF_8)) }
+            // Marquage seulement après écriture réussie : un export échoué ne doit
+            // pas faire croire que les captures sont parties.
+            lot.forEach { dao.mettreAJourCapture(it.versExportee()) }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Export du lot d'analyse impossible", e)
+            "Export impossible : ${e.message ?: e.javaClass.simpleName}"
         }
     }
 
