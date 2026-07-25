@@ -132,4 +132,48 @@ interface BoucleDao {
     /** Utilisé uniquement par l'import « Écraser », qui remplace l'état complet. */
     @Query("DELETE FROM suppressions")
     suspend fun supprimerToutesSuppressions()
+
+    /**
+     * Retrait d'une tombstone : uniquement lors d'une résurrection décidée par le
+     * moteur de fusion (la boucle revient, sa trace de suppression n'a plus lieu
+     * d'être). Il n'existe aucune purge par ancienneté, ni manuelle.
+     */
+    @Query("DELETE FROM suppressions WHERE boucleId = :boucleId")
+    suspend fun retirerSuppression(boucleId: String)
+
+    // --- Journal de synchronisation : écrit une fois, jamais modifié ni purgé ---
+
+    @Insert
+    suspend fun insererEvenementSync(evenement: EvenementSync)
+
+    /**
+     * Applique un plan de fusion et le consigne, en UNE transaction : soit la
+     * fusion et sa trace au journal existent toutes les deux, soit aucune des
+     * deux. Aucune décision n'est prise ici — tout vient de [PlanFusion], calculé
+     * par `calculerFusionSync` (fonction pure).
+     */
+    @Transaction
+    suspend fun appliquerPlanSync(
+        bouclesAInserer: List<Boucle>,
+        bouclesAMettreAJour: List<Boucle>,
+        mouvements: List<Mouvement>,
+        journaux: List<Journal>,
+        tombstonesAInserer: List<Suppression>,
+        tombstonesARetirer: List<String>,
+        evenement: EvenementSync
+    ) {
+        if (bouclesAInserer.isNotEmpty()) upsertToutes(bouclesAInserer)
+        bouclesAMettreAJour.forEach { mettreAJour(it) }
+        if (mouvements.isNotEmpty()) insererMouvements(mouvements)
+        if (journaux.isNotEmpty()) insererJournaux(journaux)
+        if (tombstonesAInserer.isNotEmpty()) insererSuppressions(tombstonesAInserer)
+        tombstonesARetirer.forEach { retirerSuppression(it) }
+        insererEvenementSync(evenement)
+    }
+
+    @Query("SELECT * FROM evenements_sync ORDER BY horodatage DESC")
+    fun observerEvenementsSync(): Flow<List<EvenementSync>>
+
+    @Query("SELECT * FROM evenements_sync ORDER BY horodatage DESC LIMIT 1")
+    suspend fun dernierEvenementSync(): EvenementSync?
 }

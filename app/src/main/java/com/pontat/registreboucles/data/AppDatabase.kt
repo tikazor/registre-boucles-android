@@ -8,8 +8,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Boucle::class, Mouvement::class, Journal::class, Suppression::class],
-    version = 5,
+    entities = [
+        Boucle::class, Mouvement::class, Journal::class, Suppression::class,
+        EvenementSync::class
+    ],
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -67,13 +70,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v5 -> v6 : table `evenements_sync` (journal de synchronisation). Aucune
+        // table existante n'est touchée : une base v5 devient v6 sans réécriture.
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `evenements_sync` (" +
+                        "`evenementId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`horodatage` INTEGER NOT NULL, `appareilDistant` TEXT NOT NULL, " +
+                        "`fichierLu` TEXT NOT NULL, `exporteLeDistant` INTEGER, " +
+                        "`bouclesAjoutees` INTEGER NOT NULL, `bouclesFusionnees` INTEGER NOT NULL, " +
+                        "`bouclesIgnorees` INTEGER NOT NULL, `mouvementsAjoutes` INTEGER NOT NULL, " +
+                        "`journauxAjoutes` INTEGER NOT NULL, `conflits` INTEGER NOT NULL, " +
+                        "`resultat` TEXT NOT NULL, `detail` TEXT NOT NULL)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "registre-boucles.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                ).addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6
+                )
                     .build().also { INSTANCE = it }
             }
     }
