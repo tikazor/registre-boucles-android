@@ -60,6 +60,21 @@ jobs:
             -Pandroid.injected.signing.key.alias=registre-release \
             -Pandroid.injected.signing.key.password=$KEY_PASS
 
+      # Garde permanente hors-ligne : porte sur le manifest MERGÉ (app + libs),
+      # là où une permission INTERNET arriverait par manifest merge d'une dépendance.
+      - name: Vérifier l'absence de réseau (manifest mergé)
+        run: |
+          MERGED=$(find app/build/intermediates -path '*merged_manifest*release*' -name AndroidManifest.xml | head -1)
+          test -n "$MERGED" || { echo "Manifest mergé introuvable"; exit 1; }
+          echo "Manifest mergé : $MERGED"
+          if grep -q "android.permission.INTERNET" "$MERGED"; then
+            echo "ÉCHEC : permission INTERNET détectée dans le manifest mergé"; exit 1;
+          fi
+          if grep -rqiE "okhttp|retrofit|ktor-client" app/build.gradle.kts; then
+            echo "ÉCHEC : dépendance réseau détectée"; exit 1;
+          fi
+          echo "OK : aucune permission INTERNET, aucune dépendance réseau."
+
       - name: Get build tag
         id: version
         run: echo "tag=build-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
