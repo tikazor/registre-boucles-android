@@ -14,6 +14,7 @@ import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.data.SourceBoucle
 import com.pontat.registreboucles.data.Statut
+import com.pontat.registreboucles.data.codeAppareilSuggere
 import com.pontat.registreboucles.data.genererProchainId
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
@@ -53,6 +54,26 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     private val _filtreStatut = MutableStateFlow(FiltreStatut.TOUTES)
     val filtreStatut: StateFlow<FiltreStatut> = _filtreStatut.asStateFlow()
+
+    // ── Identité de l'appareil ──
+    // null = pas encore choisie : l'UI affiche alors l'écran d'identité, bloquant
+    // (aucun identifiant ne peut être émis sans code d'appareil, cf. I9).
+    private val _codeAppareil = MutableStateFlow(repository.lireCodeAppareil())
+    val codeAppareil: StateFlow<String?> = _codeAppareil.asStateFlow()
+
+    /** Code proposé au premier lancement : préfixe dominant des ids déjà en base. */
+    private val _codeSuggere = MutableStateFlow<String?>(null)
+    val codeSuggere: StateFlow<String?> = _codeSuggere.asStateFlow()
+
+    /**
+     * Enregistre le code de l'appareil. Renvoie false si la saisie est refusée
+     * (il faut 1 à 4 lettres). Les boucles déjà créées gardent leur préfixe.
+     */
+    fun definirCodeAppareil(saisie: String): Boolean {
+        val code = repository.ecrireCodeAppareil(saisie) ?: return false
+        _codeAppareil.value = code
+        return true
+    }
 
     // Mode sombre — choix explicite persisté (SharedPreferences via le repository).
     private val _modeSombre = MutableStateFlow(repository.lireModeSombre())
@@ -120,6 +141,11 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     init {
         viewModelScope.launch {
             _baseVide.value = repository.estVide()
+            // Sur un appareil qui possède déjà des « B-### », on proposera « B » :
+            // la séquence existante continue sans rupture.
+            if (_codeAppareil.value == null) {
+                _codeSuggere.value = codeAppareilSuggere(repository.tousLesIds())
+            }
         }
     }
 
@@ -139,7 +165,10 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         onCree: (String) -> Unit
     ) {
         viewModelScope.launch {
-            val id = genererProchainId(repository.tousLesIds())
+            // Sans identité d'appareil, aucun identifiant ne peut être émis :
+            // on ne crée pas de boucle (l'UI empêche normalement d'arriver ici).
+            val code = repository.lireCodeAppareil() ?: return@launch
+            val id = genererProchainId(code, repository.tousLesIds())
             repository.creer(
                 Boucle(
                     id = id,
@@ -294,7 +323,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
             if (repository.estVide()) {
                 // Échec de la sauvegarde de sécurité = import annulé (rien n'est écrasé).
                 try {
-                    repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
+                    repository.importerEcraser(res.boucles, res.mouvements, res.journaux, res.suppressions)
                     _baseVide.value = false
                 } catch (e: Exception) {
                     _erreurImport.value = e.message ?: "Import annulé : sauvegarde impossible."
@@ -310,7 +339,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
             try {
-                repository.importerAjouter(res.boucles, res.mouvements, res.journaux)
+                repository.importerAjouter(res.boucles, res.mouvements, res.journaux, res.suppressions)
                 _importEnAttente.value = null
             } catch (e: Exception) {
                 // Filet manqué : rien n'a été écrit. On ferme le choix et on
@@ -326,7 +355,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
             try {
-                repository.importerEcraser(res.boucles, res.mouvements, res.journaux)
+                repository.importerEcraser(res.boucles, res.mouvements, res.journaux, res.suppressions)
                 _importEnAttente.value = null
             } catch (e: Exception) {
                 _importEnAttente.value = null
@@ -361,7 +390,8 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.importerFusionner(
-                    etat.res.boucles, etat.res.mouvements, etat.res.journaux, prendreEntrant
+                    etat.res.boucles, etat.res.mouvements, etat.res.journaux, prendreEntrant,
+                    etat.res.suppressions
                 )
                 _fusionEnCours.value = null
             } catch (e: Exception) {

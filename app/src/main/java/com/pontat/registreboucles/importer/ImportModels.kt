@@ -4,22 +4,30 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
- * DTOs du format JSON canonique unique (export = backup). Les dates sont des
- * chaînes ISO-8601 ; la conversion en epoch millis se fait dans [JsonImporter].
+ * DTOs du format JSON canonique unique (export = backup). Les dates de boucle,
+ * de mouvement et de journal sont des chaînes ISO-8601 ; la conversion en epoch
+ * millis se fait dans [JsonImporter].
  *
- * Un seul format pour tout : `{ version, boucles, journaux }`. L'ancien format
- * (`{ boucles }` sans version ni journaux) reste accepté à l'import : `version`
- * absent = 1, `journaux` absent = liste vide.
+ * Format v3 : `{ version, codeAppareil, exporteLe, boucles, journaux, suppressions }`.
+ * TOLÉRANCE ASCENDANTE : les fichiers v1 (`{ boucles }`) et v2
+ * (`{ version, boucles, journaux }`) restent importables sans erreur — tout
+ * champ ajouté depuis a une valeur par défaut ici.
  */
 @Serializable
 data class RegistreRacine(
     val version: Int = 1,
+    /** Appareil émetteur (v3+). Absent sur un fichier v1/v2. */
+    val codeAppareil: String? = null,
+    /** Date d'export, epoch millis (v3+) : métadonnée machine, non affichée. */
+    val exporteLe: Long? = null,
     val boucles: List<BoucleJson> = emptyList(),
-    val journaux: List<JournalJson> = emptyList()
+    val journaux: List<JournalJson> = emptyList(),
+    /** Tombstones (v3+) : enregistrées à l'import, pas encore exploitées. */
+    val suppressions: List<SuppressionJson> = emptyList()
 )
 
 /** Version courante écrite par l'export ([JsonExporter]). */
-const val VERSION_FORMAT_COURANTE = 2
+const val VERSION_FORMAT_COURANTE = 3
 
 @Serializable
 data class BoucleJson(
@@ -40,6 +48,10 @@ data class BoucleJson(
     val statut: String,
     val milieu: String? = null,
     val source: String? = null,     // user / ia / import (absent -> import à l'entrée)
+    /** Dernière modification, ISO-8601 (v3+). Absent = jamais modifiée depuis `creee`. */
+    val modifieeLe: String? = null,
+    /** Code de l'appareil auteur de la dernière modification (v3+). */
+    val modifieePar: String? = null,
     val mouvements: List<MouvementJson> = emptyList()
 )
 
@@ -47,6 +59,14 @@ data class BoucleJson(
 data class MouvementJson(
     val date: String,
     val note: String
+)
+
+/** Trace de suppression échangée entre appareils (v3+). */
+@Serializable
+data class SuppressionJson(
+    val boucleId: String,
+    val supprimeeLe: String,    // ISO-8601, comme les autres dates du document
+    val supprimeePar: String
 )
 
 @Serializable

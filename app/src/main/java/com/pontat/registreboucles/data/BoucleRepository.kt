@@ -44,26 +44,51 @@ class BoucleRepository(
 
     suspend fun tousLesIds(): List<String> = dao.tousLesIds()
 
+    /**
+     * Estampille une boucle avant écriture : qui l'a écrite, et quand. C'est
+     * l'UNIQUE endroit où `modifieeLe` / `modifieePar` sont posés — jamais
+     * depuis l'UI ni le ViewModel. Toute écriture de boucle passe par ici
+     * (création, modification, transition de statut, acceptation, import).
+     */
+    private fun estampiller(boucle: Boucle, maintenant: Long = System.currentTimeMillis()): Boucle =
+        boucle.copy(modifieeLe = maintenant, modifieePar = codeAppareilOuInconnu())
+
+    private fun estampiller(boucles: List<Boucle>): List<Boucle> {
+        val maintenant = System.currentTimeMillis()
+        return boucles.map { estampiller(it, maintenant) }
+    }
+
     suspend fun creer(boucle: Boucle) {
-        dao.upsert(boucle)
+        dao.upsert(estampiller(boucle))
         rafraichirWidget()
     }
 
     suspend fun mettreAJour(boucle: Boucle) {
-        dao.mettreAJour(boucle)
+        dao.mettreAJour(estampiller(boucle))
         rafraichirWidget()
     }
 
+    /**
+     * Supprime une boucle en laissant une tombstone (invariant I10) : la trace
+     * est écrite avant l'effacement, dans la même transaction. Sans elle, la
+     * boucle serait ressuscitée par le premier import venant d'un autre appareil.
+     */
     suspend fun supprimer(boucle: Boucle) {
-        dao.supprimer(boucle)
+        dao.supprimerAvecTrace(
+            boucle,
+            traceSuppression(boucle.id, codeAppareilOuInconnu(), System.currentTimeMillis())
+        )
         rafraichirWidget()
     }
 
     // Adaptateur DAO pour la logique de clôture (testée à part dans executerCloture).
+    // L'estampillage est appliqué ici, sans toucher à la logique de Cloture.kt.
     private val clotureStore = object : ClotureStore {
         override suspend fun insererJournal(journal: Journal) { dao.insererJournal(journal) }
         override suspend fun obtenirBoucle(id: String): Boucle? = dao.obtenir(id)
-        override suspend fun mettreAJourBoucle(boucle: Boucle) { dao.mettreAJour(boucle) }
+        override suspend fun mettreAJourBoucle(boucle: Boucle) {
+            dao.mettreAJour(estampiller(boucle))
+        }
     }
 
     /**
@@ -96,7 +121,7 @@ class BoucleRepository(
     suspend fun accepter(id: String, apresAmendement: Boolean = false) {
         val boucle = dao.obtenir(id) ?: return
         creerBackupStrict()   // filet AVANT l'action ; échec -> BackupException remontée
-        dao.mettreAJour(accepterProposition(boucle))
+        dao.mettreAJour(estampiller(accepterProposition(boucle)))
         dao.insererMouvement(mouvementAcceptation(id, System.currentTimeMillis(), apresAmendement))
         rafraichirWidget()
     }
@@ -131,7 +156,8 @@ class BoucleRepository(
     suspend fun importerAjouter(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
-        journaux: List<Journal>
+        journaux: List<Journal>,
+        suppressions: List<Suppression> = emptyList()
     ): Int {
         creerBackupStrict(forcer = true)   // filet AVANT toute écriture : échec = import annulé
         val existants = dao.tousLesIds().toSet()
@@ -142,9 +168,11 @@ class BoucleRepository(
         val nouveauxMouvements =
             (mouvements + coerce.mouvementsTrace).filter { it.boucleId in nouveauxIds }
         val nouveauxJournaux = journaux.filter { it.boucleId in nouveauxIds }
-        dao.upsertToutes(nouvelles)
+        dao.upsertToutes(estampiller(nouvelles))
         dao.insererMouvements(nouveauxMouvements)
         dao.insererJournaux(completerJournaux(nouvelles, nouveauxJournaux))
+        // Tombstones entrantes : enregistrées, pas encore exploitées (AND-07).
+        dao.insererSuppressions(suppressions)
         rafraichirWidget()
         return nouvelles.size
     }
@@ -156,17 +184,21 @@ class BoucleRepository(
     suspend fun importerEcraser(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
-        journaux: List<Journal>
+        journaux: List<Journal>,
+        suppressions: List<Suppression> = emptyList()
     ) {
         creerBackupStrict(forcer = true)   // filet AVANT le vidage : échec = import annulé
         dao.supprimerTousJournaux()
         dao.supprimerTousMouvements()
         dao.supprimerToutesBoucles()
+        // « Écraser » remplace l'état COMPLET : les tombstones locales aussi.
+        dao.supprimerToutesSuppressions()
         // Après vidage, TOUTES les boucles sont nouvelles : coercition sur set vide.
         val coerce = coercerPropositionsIA(boucles, emptySet(), System.currentTimeMillis())
-        dao.upsertToutes(coerce.boucles)
+        dao.upsertToutes(estampiller(coerce.boucles))
         dao.insererMouvements(mouvements + coerce.mouvementsTrace)
         dao.insererJournaux(completerJournaux(coerce.boucles, journaux))
+        dao.insererSuppressions(suppressions)
         rafraichirWidget()
     }
 
@@ -182,7 +214,8 @@ class BoucleRepository(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
         journaux: List<Journal>,
-        prendreEntrant: Set<String>
+        prendreEntrant: Set<String>,
+        suppressions: List<Suppression> = emptyList()
     ) {
         creerBackupStrict(forcer = true)   // filet AVANT écriture : échec = import annulé
         val existantes = dao.toutesLesBoucles()
@@ -199,11 +232,12 @@ class BoucleRepository(
             journauxEntrants = journaux,
             prendreEntrant = prendreEntrant
         )
-        dao.upsertToutes(res.bouclesNouvelles)
-        res.bouclesMisesAJour.forEach { dao.mettreAJour(it) }
+        dao.upsertToutes(estampiller(res.bouclesNouvelles))
+        estampiller(res.bouclesMisesAJour).forEach { dao.mettreAJour(it) }
         dao.insererMouvements(res.mouvementsAjoutes)
         // Les nouvelles boucles terminales sans journal reçoivent une entrée par défaut.
         dao.insererJournaux(completerJournaux(res.bouclesNouvelles, res.journauxAjoutes))
+        dao.insererSuppressions(suppressions)
         rafraichirWidget()
     }
 
@@ -243,7 +277,10 @@ class BoucleRepository(
             val contenu = JsonExporter.serialiser(
                 dao.toutesLesBoucles(),
                 dao.tousLesMouvements(),
-                dao.tousLesJournaux()
+                dao.tousLesJournaux(),
+                dao.toutesLesSuppressions(),
+                lireCodeAppareil(),
+                System.currentTimeMillis()
             )
             val flux = appContext.contentResolver.openOutputStream(uri)
                 ?: return "Impossible d'ouvrir le fichier de destination."
@@ -275,7 +312,10 @@ class BoucleRepository(
         val contenu = BackupExporter.serialiser(
             dao.toutesLesBoucles(),
             dao.tousLesMouvements(),
-            dao.tousLesJournaux()
+            dao.tousLesJournaux(),
+            dao.toutesLesSuppressions(),
+            lireCodeAppareil(),
+            System.currentTimeMillis()
         )
         val dossier = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
         val fichier = File(dossier, nomBackup(System.currentTimeMillis()))
@@ -348,6 +388,38 @@ class BoucleRepository(
     private suspend fun rafraichirWidget() {
         BoucleWidget().updateAll(appContext)
     }
+
+    // ── Identité de l'appareil ──
+    //
+    // Fichier de préférences DÉDIÉ, et non `registre-prefs` : les règles de
+    // sauvegarde Android ne savent exclure qu'un FICHIER entier, jamais une clé
+    // (vérifié dans la doc : l'attribut `path` désigne « a file or folder »).
+    // Isoler le code appareil permet de l'exclure nommément des sauvegardes —
+    // sinon une restauration sur un appareil neuf clonerait l'identité et
+    // provoquerait les collisions d'identifiants que l'on cherche à éviter —
+    // tout en laissant `registre-prefs` (thème, listes) sauvegardable un jour.
+    private val prefsAppareil
+        get() = appContext.getSharedPreferences("registre-appareil", Context.MODE_PRIVATE)
+
+    /** Code de cet appareil, ou null s'il n'a pas encore été choisi. */
+    fun lireCodeAppareil(): String? = prefsAppareil.getString("code_appareil", null)
+
+    /**
+     * Pose le code de l'appareil. Refuse une saisie non conforme (1 à 4 lettres) :
+     * renvoie le code normalisé si accepté, null sinon.
+     */
+    fun ecrireCodeAppareil(saisie: String): String? {
+        val code = normaliserCodeAppareil(saisie) ?: return null
+        prefsAppareil.edit().putString("code_appareil", code).apply()
+        return code
+    }
+
+    /**
+     * Code appareil pour l'estampillage. `?` marque une écriture faite avant que
+     * l'identité ne soit posée : la valeur reste lisible et n'invente pas de
+     * provenance (l'UI empêche normalement ce cas, cf. écran d'identité).
+     */
+    private fun codeAppareilOuInconnu(): String = lireCodeAppareil() ?: "?"
 
     // ── Préférence de thème (mode sombre) ──
     private val prefs

@@ -3,9 +3,14 @@
     <cloud-backup>
         <include domain="database" path="registre-boucles.db" />
         <include domain="external" path="backups/" />
+        <!-- Identité de l'appareil : jamais restaurée (cf. backup_rules.xml). -->
+        <exclude domain="sharedpref" path="registre-appareil.xml" />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="registre-boucles.db" />
         <include domain="external" path="backups/" />
+        <!-- Même sur un transfert d'appareil à appareil : le nouvel appareil doit
+             choisir SON code, sinon les deux partagent la même séquence d'ids. -->
+        <exclude domain="sharedpref" path="registre-appareil.xml" />
     </device-transfer>
 </data-extraction-rules>

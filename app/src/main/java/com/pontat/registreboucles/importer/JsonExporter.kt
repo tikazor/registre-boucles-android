@@ -3,6 +3,7 @@ package com.pontat.registreboucles.importer
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
+import com.pontat.registreboucles.data.Suppression
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
@@ -26,13 +27,19 @@ object JsonExporter {
     fun serialiser(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
-        journaux: List<Journal>
+        journaux: List<Journal>,
+        suppressions: List<Suppression> = emptyList(),
+        codeAppareil: String? = null,
+        exporteLe: Long? = null
     ): String = json.encodeToString(
         RegistreRacine.serializer(),
         RegistreRacine(
             version = VERSION_FORMAT_COURANTE,
+            codeAppareil = codeAppareil,
+            exporteLe = exporteLe,
             boucles = mapBoucles(boucles, mouvements),
-            journaux = mapJournaux(journaux)
+            journaux = mapJournaux(journaux),
+            suppressions = mapSuppressions(suppressions)
         )
     )
 
@@ -56,6 +63,8 @@ object JsonExporter {
                 statut = b.statut,
                 milieu = b.milieu,
                 source = b.source,
+                modifieeLe = b.modifieeLe?.let { iso(it) },
+                modifieePar = b.modifieePar,
                 mouvements = (mouvParBoucle[b.id] ?: emptyList())
                     .sortedBy { it.date }
                     .map { MouvementJson(date = iso(it.date), note = it.contenu) }
@@ -70,6 +79,15 @@ object JsonExporter {
             date = iso(it.date),
             type = it.type,
             texte = it.texte
+        )
+    }
+
+    /** Mapping partagé Suppression -> SuppressionJson. */
+    fun mapSuppressions(suppressions: List<Suppression>): List<SuppressionJson> = suppressions.map {
+        SuppressionJson(
+            boucleId = it.boucleId,
+            supprimeeLe = iso(it.supprimeeLe),
+            supprimeePar = it.supprimeePar
         )
     }
 

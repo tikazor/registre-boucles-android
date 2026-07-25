@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.CibleWidget
 import com.pontat.registreboucles.ui.RegistreNavHost
+import com.pontat.registreboucles.ui.screens.IdentiteAppareilScreen
 import com.pontat.registreboucles.ui.screens.ImportScreen
 import com.pontat.registreboucles.ui.theme.RegistreBouclesTheme
 
@@ -77,11 +78,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun App(vm: BoucleViewModel) {
     val baseVide by vm.baseVide.collectAsStateWithLifecycle()
-    when (baseVide) {
-        null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val codeAppareil by vm.codeAppareil.collectAsStateWithLifecycle()
+
+    when {
+        // Chargement : on ne sait pas encore si la base est vide.
+        baseVide == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        true -> ImportScreen(vm = vm)
-        false -> RegistreNavHost(vm = vm)
+        // Identité d'appareil AVANT tout le reste : sans elle, aucun identifiant
+        // ne peut être émis et aucune écriture ne peut être attribuée (I9).
+        codeAppareil == null -> IdentiteAppareilScreen(vm = vm)
+        baseVide == true -> ImportScreen(vm = vm)
+        else -> RegistreNavHost(vm = vm)
     }
 }

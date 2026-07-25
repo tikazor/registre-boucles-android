@@ -3,4 +3,13 @@
     <include domain="database" path="registre-boucles.db" />
     <!-- Backups locaux versionnés : survivent à la désinstallation / au changement d'appareil. -->
     <include domain="external" path="backups/" />
+
+    <!-- Identité de l'appareil : JAMAIS sauvegardée, JAMAIS restaurée.
+         Sinon une restauration sur un appareil neuf clonerait le code et les deux
+         appareils émettraient les mêmes identifiants (cf. invariant I9).
+         La granularité des règles Android est le FICHIER, pas la clé : le code
+         vit donc dans son propre fichier de préférences. `exclude` est prioritaire
+         sur `include`, ce qui rend l'exclusion définitive même si un
+         `include domain="sharedpref"` était ajouté plus tard. -->
+    <exclude domain="sharedpref" path="registre-appareil.xml" />
 </full-backup-content>

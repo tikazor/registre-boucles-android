@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -63,6 +64,17 @@ interface BoucleDao {
     @Delete
     suspend fun supprimer(boucle: Boucle)
 
+    /**
+     * Suppression tracée : la tombstone est écrite AVANT l'effacement, dans la
+     * même transaction. Une suppression sans trace est un bug (invariant I10),
+     * d'où la transaction : les deux réussissent, ou aucune.
+     */
+    @Transaction
+    suspend fun supprimerAvecTrace(boucle: Boucle, trace: Suppression) {
+        insererSuppression(trace)
+        supprimer(boucle)
+    }
+
     @Query("DELETE FROM boucles")
     suspend fun supprimerToutesBoucles()
 
@@ -105,4 +117,19 @@ interface BoucleDao {
 
     @Insert
     suspend fun insererMouvements(mouvements: List<Mouvement>)
+
+    // --- Suppressions (tombstones) : jamais purgées automatiquement ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insererSuppression(suppression: Suppression)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insererSuppressions(suppressions: List<Suppression>)
+
+    @Query("SELECT * FROM suppressions")
+    suspend fun toutesLesSuppressions(): List<Suppression>
+
+    /** Utilisé uniquement par l'import « Écraser », qui remplace l'état complet. */
+    @Query("DELETE FROM suppressions")
+    suspend fun supprimerToutesSuppressions()
 }

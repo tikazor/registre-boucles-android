@@ -4,6 +4,8 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.data.SourceBoucle
+import com.pontat.registreboucles.data.Suppression
+import com.pontat.registreboucles.data.idConforme
 import com.pontat.registreboucles.data.Statut
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -18,11 +20,18 @@ import java.time.format.DateTimeParseException
 /** Erreur d'import lisible affichée à l'écran (jamais de crash silencieux). */
 class ImportException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** Résultat d'un import : boucles + mouvements + journaux prêts pour Room. */
+/**
+ * Résultat d'un import, prêt pour Room. [idsNonConformes] recense les
+ * identifiants qui ne respectent pas la convention `<CODE>-###` : ils sont
+ * TOLÉRÉS (ni rejetés, ni renumérotés), simplement signalés à l'utilisateur.
+ */
 data class ImportResult(
     val boucles: List<Boucle>,
     val mouvements: List<Mouvement>,
-    val journaux: List<Journal>
+    val journaux: List<Journal>,
+    val suppressions: List<Suppression> = emptyList(),
+    val codeAppareilSource: String? = null,
+    val idsNonConformes: List<String> = emptyList()
 )
 
 object JsonImporter {
@@ -88,7 +97,11 @@ object JsonImporter {
                 statut = b.statut,
                 milieu = b.milieu,
                 // L'import respecte la provenance déclarée ; IMPORT par défaut si absente.
-                source = b.source ?: SourceBoucle.IMPORT.valeurStockee()
+                source = b.source ?: SourceBoucle.IMPORT.valeurStockee(),
+                // Absents des fichiers v1/v2 : la boucle se lit alors comme
+                // « jamais modifiée depuis sa création » (derniereModification()).
+                modifieeLe = b.modifieeLe?.let { parseDate(it, "modifieeLe", b.id) },
+                modifieePar = b.modifieePar
             )
 
             for (m in b.mouvements) {
@@ -103,6 +116,9 @@ object JsonImporter {
             }
         }
 
+        // Identifiants hors convention : tolérés, mais signalés (cf. ImportResult).
+        val idsNonConformes = racine.boucles.map { it.id }.filterNot { idConforme(it) }
+
         // Journaux (présents dans les fichiers de backup ; absents des exports simples).
         val journaux = racine.journaux.map { j ->
             Journal(
@@ -113,7 +129,23 @@ object JsonImporter {
             )
         }
 
-        return ImportResult(boucles, mouvements, journaux)
+        // Tombstones : absentes des fichiers v1/v2 (liste vide).
+        val suppressions = racine.suppressions.map { sp ->
+            Suppression(
+                boucleId = sp.boucleId,
+                supprimeeLe = parseDate(sp.supprimeeLe, "supprimeeLe", sp.boucleId),
+                supprimeePar = sp.supprimeePar
+            )
+        }
+
+        return ImportResult(
+            boucles = boucles,
+            mouvements = mouvements,
+            journaux = journaux,
+            suppressions = suppressions,
+            codeAppareilSource = racine.codeAppareil,
+            idsNonConformes = idsNonConformes
+        )
     }
 
     /**

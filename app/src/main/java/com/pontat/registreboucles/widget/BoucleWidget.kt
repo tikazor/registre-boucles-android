@@ -42,6 +42,7 @@ import com.pontat.registreboucles.MainActivity
 import com.pontat.registreboucles.R
 import com.pontat.registreboucles.RegistreApplication
 import com.pontat.registreboucles.data.AppDatabase
+import com.pontat.registreboucles.data.derniereModification
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.ui.couleurStatut
@@ -133,7 +134,7 @@ class BoucleWidget : GlanceAppWidget() {
             }
             items(boucles) { b ->
                 Box(GlanceModifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    CarteBoucle(b, modifs[b.id] ?: b.creee, p)
+                    CarteBoucle(b, maxOf(b.derniereModification(), modifs[b.id] ?: 0L), p)
                 }
             }
         }

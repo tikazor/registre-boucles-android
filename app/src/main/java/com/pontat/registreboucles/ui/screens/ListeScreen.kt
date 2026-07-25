@@ -91,6 +91,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.Milieu
+import com.pontat.registreboucles.data.derniereModification
 import com.pontat.registreboucles.data.estActive
 import com.pontat.registreboucles.data.estEcheanceProche
 import com.pontat.registreboucles.data.estEnRetard
@@ -491,15 +492,35 @@ fun ListeScreen(
             onDismissRequest = { vm.annulerImport() },
             title = { Text("Importer ${enAttente.boucles.size} boucle(s)") },
             text = {
-                Text(
-                    "La base contient déjà des données.\n\n" +
-                        "• Ajouter : n'insère que les boucles absentes. Tes boucles, clôtures " +
-                        "et mouvements sont conservés.\n\n" +
-                        "• Fusionner : enrichit sans rien détruire. Mouvements et journaux " +
-                        "ajoutés (sans doublon) ; pour les boucles existantes divergentes, tu " +
-                        "arbitres champ à conserver.\n\n" +
-                        "• Écraser : vide tout et réimporte le fichier tel quel."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "La base contient déjà des données.\n\n" +
+                            "• Ajouter : n'insère que les boucles absentes. Tes boucles, clôtures " +
+                            "et mouvements sont conservés.\n\n" +
+                            "• Fusionner : enrichit sans rien détruire. Mouvements et journaux " +
+                            "ajoutés (sans doublon) ; pour les boucles existantes divergentes, tu " +
+                            "arbitres champ à conserver.\n\n" +
+                            "• Écraser : vide tout et réimporte le fichier tel quel."
+                    )
+                    // Rapport d'import : provenance déclarée et ids hors convention.
+                    enAttente.codeAppareilSource?.let {
+                        Text(
+                            "Fichier émis par l'appareil « $it ».",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (enAttente.idsNonConformes.isNotEmpty()) {
+                        Text(
+                            "${enAttente.idsNonConformes.size} identifiant(s) hors convention " +
+                                "« CODE-### » : ${enAttente.idsNonConformes.take(3).joinToString(", ")}" +
+                                (if (enAttente.idsNonConformes.size > 3) "…" else "") +
+                                ". Ils sont importés tels quels, sans renumérotation.",
+                            fontSize = 12.sp,
+                            color = Mnemosyne.couleurs.bientot
+                        )
+                    }
+                }
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -634,7 +655,9 @@ private fun CarteBoucle(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Modifié le ${formaterDate(derniereModif ?: boucle.creee)}",
+                    // derniereModification() porte le repli « jamais modifiée -> creee » ;
+                    // on retient la plus récente des deux traces d'activité.
+                    "Modifié le ${formaterDate(maxOf(boucle.derniereModification(), derniereModif ?: 0L))}",
                     fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)

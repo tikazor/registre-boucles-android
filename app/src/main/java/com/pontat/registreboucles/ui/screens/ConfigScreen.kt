@@ -28,7 +28,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pontat.registreboucles.data.ListeOptions
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.theme.Mnemosyne
@@ -52,6 +56,11 @@ fun ConfigScreen(
     val depart = remember { vm.options.value }
     val types = remember { mutableStateListOf(*depart.types.toTypedArray()) }
     val tiers = remember { mutableStateListOf(*depart.tiers.toTypedArray()) }
+
+    val codeAppareil by vm.codeAppareil.collectAsStateWithLifecycle()
+    val codeActuel = codeAppareil ?: "?"
+    var saisieCode by remember(codeActuel) { mutableStateOf(codeActuel) }
+    var codeRefuse by remember { mutableStateOf(false) }
 
     // Sortie du dernier backup vers un emplacement choisi (Drive, stockage…).
     val exportBackupLauncher = rememberLauncherForActivityResult(
@@ -107,6 +116,61 @@ fun ConfigScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // ── Identité de l'appareil ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Identité de cet appareil",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Ce code préfixe les boucles créées ici (« $codeActuel-042 »). Deux " +
+                        "appareils ne peuvent ainsi jamais produire le même identifiant.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = saisieCode,
+                        onValueChange = { saisieCode = it.uppercase().take(4); codeRefuse = false },
+                        singleLine = true,
+                        isError = codeRefuse,
+                        label = { Text("Code appareil") },
+                        supportingText = {
+                            Text(if (codeRefuse) "1 à 4 lettres." else "1 à 4 lettres majuscules.")
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        enabled = saisieCode.isNotBlank() && saisieCode != codeActuel,
+                        onClick = {
+                            if (vm.definirCodeAppareil(saisieCode)) {
+                                codeRefuse = false
+                                Toast.makeText(
+                                    context,
+                                    "Code appareil : $saisieCode. Les boucles déjà créées " +
+                                        "gardent leur préfixe.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                codeRefuse = true
+                            }
+                        }
+                    ) { Text("Changer") }
+                }
+                Text(
+                    "⚠ Changer ce code ne renumérote rien : les boucles déjà créées gardent " +
+                        "leur préfixe actuel. Ne le modifie que si tu sais pourquoi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            HorizontalDivider()
+
             Section("Type", types, ::persister)
             HorizontalDivider()
             Section("Tiers", tiers, ::persister)

@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Boucle::class, Mouvement::class, Journal::class],
-    version = 4,
+    entities = [Boucle::class, Mouvement::class, Journal::class, Suppression::class],
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -51,13 +51,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4 -> v5 : horodatage de modification (qui / quand) + table des
+        // suppressions (tombstones). Deux ALTER TABLE : la table `boucles` n'est
+        // pas recréée, les données existantes sont conservées telles quelles
+        // (modifieeLe null se lit comme `creee`, cf. Boucle.derniereModification).
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE boucles ADD COLUMN modifieeLe INTEGER")
+                db.execSQL("ALTER TABLE boucles ADD COLUMN modifieePar TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `suppressions` (" +
+                        "`boucleId` TEXT NOT NULL, `supprimeeLe` INTEGER NOT NULL, " +
+                        "`supprimeePar` TEXT NOT NULL, PRIMARY KEY(`boucleId`))"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "registre-boucles.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build().also { INSTANCE = it }
             }
     }
