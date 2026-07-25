@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Direct Share (Sharing Shortcuts). Sans ce fichier, l'application n'apparaît que
+  dans la grille générique du menu de partage, souvent en bas, et met des semaines
+  à remonter dans les suggestions du système.
+
+  Le <share-target> déclare que CaptureActivity sait recevoir du text/plain, et le
+  rattache à une catégorie propre à l'application. Les raccourcis publiés à
+  l'exécution (ShortcutManagerCompat, cf. RegistreApplication) portent cette même
+  catégorie : c'est ce lien catégorie <-> raccourci qui fait remonter une cible
+  directe dans la feuille de partage.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <share-target android:targetClass="com.pontat.registreboucles.capture.CaptureActivity">
+        <data android:mimeType="text/plain" />
+        <category android:name="com.pontat.registreboucles.category.CAPTURE" />
+    </share-target>
+
+    <!-- Raccourci statique : « Capturer » accessible par appui long sur l'icône. -->
+    <shortcut
+        android:shortcutId="capture-directe"
+        android:enabled="true"
+        android:icon="@drawable/ic_mnemosyne_grand"
+        android:shortcutShortLabel="@string/raccourci_capture_court"
+        android:shortcutLongLabel="@string/raccourci_capture_long">
+        <intent
+            android:action="android.intent.action.SEND"
+            android:targetPackage="com.pontat.registreboucles"
+            android:targetClass="com.pontat.registreboucles.capture.CaptureActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+</shortcuts>

@@ -22,6 +22,36 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Sharing Shortcuts : doit être déclaré sur l'activité de lancement. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!--
+          Capture depuis une autre application. Les attributs ne sont pas
+          cosmétiques : excludeFromRecents + taskAffinity="" font que la feuille de
+          capture ne laisse pas de fenêtre dans les récents et ne s'empile pas sur
+          la tâche du registre — on revient à l'app d'origine, pas dans Mnemosyne.
+          Filtre text/plain uniquement : aucune image n'est acceptée, aucun OCR.
+        -->
+        <activity
+            android:name=".capture.CaptureActivity"
+            android:exported="true"
+            android:label="Registre"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <receiver
