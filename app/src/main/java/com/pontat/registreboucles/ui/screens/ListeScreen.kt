@@ -82,6 +82,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -104,8 +105,10 @@ import com.pontat.registreboucles.ui.couleurStatut
 import com.pontat.registreboucles.ui.formaterDate
 import com.pontat.registreboucles.ui.formaterDateHeure
 import com.pontat.registreboucles.ui.libelleStatut
+import com.pontat.registreboucles.R
 import com.pontat.registreboucles.ui.theme.Alerte
 import com.pontat.registreboucles.ui.theme.Marine
+import com.pontat.registreboucles.ui.theme.MarquePierre
 import com.pontat.registreboucles.ui.theme.Teal
 import com.pontat.registreboucles.ui.theme.Warn
 import kotlinx.coroutines.launch
@@ -237,16 +240,26 @@ fun ListeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Register Mnemosyne",
-                        modifier = Modifier.pointerInput(Unit) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                val relache = withTimeoutOrNull(2000L) { waitForUpOrCancellation() }
-                                if (relache == null) onOuvrirDebug()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Marque Mnemosyne en Pierre (couleur « marque sur sombre »).
+                        Icon(
+                            painter = painterResource(R.drawable.ic_mnemosyne),
+                            contentDescription = null,
+                            tint = MarquePierre,
+                            modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Register Mnemosyne",
+                            modifier = Modifier.pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    val relache = withTimeoutOrNull(2000L) { waitForUpOrCancellation() }
+                                    if (relache == null) onOuvrirDebug()
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 },
                 actions = {
                     // Badge Supervision : nombre de propositions en attente (masqué si zéro).

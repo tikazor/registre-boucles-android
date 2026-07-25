@@ -4,5 +4,12 @@
     <color name="marine_fonce">#152B47</color>
     <color name="teal">#2E7D74</color>
     <color name="fond">#ECEFF3</color>
-    <color name="ic_launcher_background">#FFFFFF</color>
+
+    <!-- Palette de la marque Mnemosyne (jeu d'icônes). Distincte de la charte
+         marine/sarcelle de l'interface : elle ne sert qu'au logo. -->
+    <color name="marque_encre">#0B1620</color>
+    <color name="marque_pierre">#E4E7E2</color>
+
+    <!-- Fond de l'adaptive icon : Encre, comme png/maskable-512.png. -->
+    <color name="ic_launcher_background">@color/marque_encre</color>
 </resources>

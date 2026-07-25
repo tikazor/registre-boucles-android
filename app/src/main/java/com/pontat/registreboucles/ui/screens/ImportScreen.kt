@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,9 +21,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pontat.registreboucles.R
 import com.pontat.registreboucles.ui.BoucleViewModel
 
 @Composable
@@ -52,6 +56,13 @@ fun ImportScreen(vm: BoucleViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Marque Mnemosyne : elle prend la couleur d'accent du thème courant.
+        Icon(
+            painter = painterResource(R.drawable.ic_mnemosyne),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(72.dp).padding(bottom = 8.dp)
+        )
         Text(
             text = "Register Mnemosyne",
             style = MaterialTheme.typography.headlineMedium,

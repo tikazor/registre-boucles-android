@@ -1,18 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Marque Mnemosyne : la goutte pénètre la première onde de la double spirale.
+  Source : mnemosyne-icones/mnemosyne.svg (viewBox 64, trait 1,2 — palier
+  « ≥ 128 px » du jeu d'icônes ; sur un écran 3x la marque se rend ~150 px).
+
+  Mise à l'échelle pour l'adaptive icon : canvas 108, marque à 62 % (même
+  proportion que png/maskable-512.png), soit scale 1,046 et translation 20,5
+  pour centrer. La marque reste donc dans la zone sûre (cercle 72/108) quelle
+  que soit la forme du masque appliqué par le lanceur.
+
+  À ne pas faire (cf. README du jeu d'icônes) : refermer les spirales, ajouter
+  un contour à la goutte, ou étirer verticalement (ry = 0,4 × rx fixe l'angle
+  de vue).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Deux anneaux entrelacés (marine + sarcelle). -->
-    <path
-        android:strokeColor="#1E3A5F"
-        android:strokeWidth="7"
-        android:fillColor="#00000000"
-        android:pathData="M46,54 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" />
-    <path
-        android:strokeColor="#2E7D74"
-        android:strokeWidth="7"
-        android:fillColor="#00000000"
-        android:pathData="M62,54 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" />
+
+    <group
+        android:scaleX="1.046"
+        android:scaleY="1.046"
+        android:translateX="20.5"
+        android:translateY="20.5">
+
+        <!-- La goutte : aplat sans contour (le contraste aplat/filet porte la lecture). -->
+        <path
+            android:fillColor="#E4E7E2"
+            android:pathData="M32,19.15c0,0,6.25,7.08,6.25,10.83a6.25,6.25,0,1,1,-12.5,0c0,-3.75,6.25,-10.83,6.25,-10.83z" />
+
+        <!-- Spirale 1 : quatre demi-tours en perspective. -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#E4E7E2"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M27,37.25a7,2.8,0,0,1,14,0a11,4.4,0,0,1,-22,0a15,6,0,0,1,30,0a19,7.6,0,0,1,-38,0" />
+
+        <!-- Spirale 2 : sens contraire ; les deux se coupent à chaque demi-tour. -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#E4E7E2"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M37,37.25a7,2.8,0,0,0,-14,0a11,4.4,0,0,0,22,0a15,6,0,0,0,-30,0a19,7.6,0,0,0,38,0" />
+    </group>
 </vector>

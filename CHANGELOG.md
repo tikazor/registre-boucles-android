@@ -12,6 +12,12 @@ commits **par lot de travail**, pas par commit.
 ## [Non publié]
 
 ### Added
+- **Nouveau logo Mnemosyne** (double spirale, la goutte pénètre la première
+  onde) : icône de lancement adaptative — marque Pierre `#E4E7E2` sur fond
+  Encre `#0B1620`, dessinée en vecteur (net à toutes les densités, couche
+  `monochrome` pour les icônes thématisées d'Android 13+). La marque apparaît
+  aussi dans la barre de titre et sur l'écran de premier lancement. Sources du
+  jeu d'icônes conservées dans `design/mnemosyne-icones/`.
 - **Tableau de bord cliquable** : les trois tuiles (« Ouvertes », « En retard »,
   « ≤ 7 jours ») deviennent des filtres. Un appui filtre la liste, un second
   revient à « Toutes ». La tuile active est signalée par un liseré et un fond
