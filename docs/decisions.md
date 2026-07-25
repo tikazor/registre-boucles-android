@@ -41,7 +41,13 @@ entrer en collision.
 - **C — UUID / ULID.** Plus de collision possible, mais ids illisibles et
   perte du tri naturel par numéro.
 
-**Statut : OUVERT.** À trancher si/quand une seconde source écrit des boucles.
+**Statut : TRANCHÉ** — 2026-07-25, par le commanditaire.
+**Option retenue : B — préfixe par appareil.** Chaque appareil porte un code
+court (1 à 4 lettres) qui préfixe les identifiants qu'il crée, et ne compte que
+les siens pour calculer le suivant : deux appareils ne peuvent pas émettre le
+même identifiant, sans aucune coordination. Les identifiants existants ne sont
+jamais réécrits (un appareil « B » continue simplement en B-041). Mis en œuvre
+en AND-07 ; cf. invariant I9.
 
 ---
 

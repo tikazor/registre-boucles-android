@@ -1,19 +1,19 @@
 ---
-title: Modèle de données interne (Room v4)
+title: Modèle de données interne (Room v5)
 type: reference
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Statut,Milieu,SourceBoucle,JournalType,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/4.json
+source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,Statut,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/5.json
 ---
 
-# Modèle de données interne (Room v4)
+# Modèle de données interne (Room v5)
 
 Ce document décrit le modèle **interne** (tables SQLite / entités Room).
 Pour la représentation **JSON** échangée à l'import/export, voir
 [`../schema.md`](../schema.md) — les deux ne sont pas identiques (voir
 « Écarts connus » en fin de document) et ne doivent pas être confondus.
 
-Base : `registre-boucles.db`, version de schéma **4**, 3 tables.
+Base : `registre-boucles.db`, version de schéma **5**, 4 tables.
 
 ---
 
@@ -23,7 +23,7 @@ Une « boucle » = un engagement ouvert qui doit être clôturé avec une preuve
 
 | Colonne | Type SQL | Nullable | Signification métier |
 |---|---|---|---|
-| `id` | TEXT | non (**PK**) | Identifiant lisible, préfixé par producteur (`B-###` = app, `IA-###` = IA). Non auto-généré : fourni par l'appelant. Cf. [`../schema.md`](../schema.md) §6. |
+| `id` | TEXT | non (**PK**) | Identifiant lisible, préfixé par le **code de l'appareil** qui l'a créé (`B-041`, `PRO-007`). Non auto-généré : fourni par l'appelant. Cf. §1.1 et [`../schema.md`](../schema.md) §6. |
 | `type` | TEXT | non | Nature de la boucle, **texte libre** configurable dans Réglages (ex. `ACTION`, `DECISION`). Aucun enum. |
 | `titre` | TEXT | non | Intitulé court affiché en tête de carte. |
 | `origine` | TEXT | non | D'où vient l'engagement (conversation, réunion, analyse…). Sert à retrouver le contexte. |
@@ -37,8 +37,40 @@ Une « boucle » = un engagement ouvert qui doit être clôturé avec une preuve
 | `statut` | TEXT | non | Cycle de vie. Valeurs et sémantique : §4.1. Stocké en minuscules. |
 | `milieu` | TEXT | oui | Domaine de vie. `null` = non renseigné. §4.2. |
 | `source` | TEXT | oui | Provenance. `null` = `user` (données antérieures à la v4). §4.3. |
+| `modifieeLe` | INTEGER | oui | Date de dernière modification, epoch millis. `null` = **jamais modifiée depuis sa création** (cas des données antérieures à la v5). Lecture via `derniereModification()`, qui retombe alors sur `creee`. |
+| `modifieePar` | TEXT | oui | Code de l'appareil auteur de cette dernière modification. `null` = inconnu ; `"?"` si l'écriture a eu lieu sans identité enregistrée. |
 
 Pas d'index secondaire ni de clé étrangère sur cette table.
+
+### 1.1 Le code appareil et le préfixe des identifiants
+
+Chaque installation porte un **code appareil** : 1 à 4 lettres majuscules
+(`^[A-Z]{1,4}$`, `normaliserCodeAppareil()`), saisi une fois au premier
+lancement et stocké **hors de la base**, dans un fichier de préférences dédié
+`registre-appareil.xml` (`SharedPreferences`, clé `code_appareil`).
+
+Ce code sert deux rôles :
+
+1. **Préfixer les identifiants créés localement.** `genererProchainId(code, ids)`
+   ne compte que les identifiants portant *ce* préfixe : un appareil `B` qui voit
+   des `PRO-###` importés continue sa propre séquence en `B-041`. Deux appareils
+   ne peuvent donc pas émettre le même identifiant, sans aucune coordination
+   entre eux (cf. ADR-02, tranché option B).
+2. **Estampiller les écritures** (`modifieePar`) et les suppressions
+   (`suppressions.supprimeePar`).
+
+Au premier lancement d'une base déjà peuplée (restauration, import),
+`codeAppareilSuggere(ids)` propose le préfixe **dominant** des identifiants
+présents, afin que la séquence existante continue sans rupture. Les
+identifiants historiques ne sont **jamais** réécrits : `idConforme()`
+(`^[A-Z]{1,4}-\d{3,}$`) sert uniquement à *signaler* les non-conformes dans le
+rapport d'import.
+
+> **Ce fichier de préférences est exclu des sauvegardes système** — c'est
+> délibéré : restaurer une sauvegarde sur un second appareil ne doit pas cloner
+> son identité, sinon les deux émettraient les mêmes identifiants. Voir
+> [`../explanation/invariants.md`](../explanation/invariants.md) I9 et
+> `res/xml/{backup_rules,data_extraction_rules}.xml`.
 
 ## 2. Table `mouvements` — entité `Mouvement`
 
@@ -66,6 +98,42 @@ Supprimer une boucle supprime **automatiquement** ses mouvements et ses
 journaux. C'est pour cela que l'import « Écraser » vide explicitement les trois
 tables et qu'un backup strict le précède (cf.
 [`../explanation/invariants.md`](../explanation/invariants.md) I4).
+
+## 3 bis. Table `suppressions` — entité `Suppression`
+
+Une « pierre tombale » (*tombstone*) : la trace qu'une boucle a existé et a été
+supprimée délibérément.
+
+| Colonne | Type SQL | Nullable | Signification |
+|---|---|---|---|
+| `boucleId` | TEXT | non (**PK**) | Identifiant de la boucle supprimée. **Pas de clé étrangère** : la ligne référencée n'existe plus, par définition. |
+| `supprimeeLe` | INTEGER | non | Date de la suppression, epoch millis. |
+| `supprimeePar` | TEXT | non | Code de l'appareil qui a supprimé (`"?"` si aucune identité enregistrée). |
+
+**Pourquoi.** Sans cette table, une suppression est indistinguable d'une
+absence. Un appareil qui recevrait un export d'un autre ne pourrait pas savoir
+si `B-013` a été supprimée là-bas ou n'y est jamais arrivée : la réimporter
+la ferait « ressusciter ». La trace rend la suppression transmissible.
+
+**Où.** `Suppression.kt` (`traceSuppression(boucleId, code, date)`, fonction
+pure) et `BoucleDao.supprimerAvecTrace(boucle, trace)`, annotée `@Transaction` :
+la trace et la suppression sont écrites **atomiquement** — il n'existe pas
+d'état où la boucle a disparu sans laisser de trace. `BoucleRepository.supprimer()`
+est le seul appelant.
+
+**Cycle de vie des traces.** Elles sont exportées (racine `suppressions` du
+JSON, format v3) et importées par les trois modes. « Écraser » vide d'abord la
+table (`supprimerToutesSuppressions()`) puis insère celles du fichier ;
+« Ajouter » et « Fusionner » les ajoutent (`REPLACE` sur `boucleId`). Aucune
+purge automatique n'est implémentée : une trace reste indéfiniment.
+→ *à confirmer* : faut-il purger les traces au-delà d'une certaine ancienneté ?
+Non tranché.
+
+**Ce que cette table ne fait pas (encore).** L'import ne s'en sert pas pour
+*empêcher* la réapparition d'une boucle supprimée : si un fichier contient à la
+fois `B-013` et sa tombstone, la boucle est réinsérée. La table constitue le
+socle de données ; l'arbitrage « la tombstone gagne-t-elle sur la boucle ? »
+relève d'un lot de synchronisation ultérieur (ADR-03 et suivants).
 
 ---
 
@@ -173,8 +241,9 @@ n'efface jamais les données).
 | 1 → 2 | `ALTER TABLE boucles ADD COLUMN milieu TEXT` | AND-01 |
 | 2 → 3 | `CREATE TABLE journaux (…)` + `CREATE INDEX index_journaux_boucleId` | AND-01 |
 | 3 → 4 | `ALTER TABLE boucles ADD COLUMN source TEXT` | AND-03 |
+| 4 → 5 | `ALTER TABLE boucles ADD COLUMN modifieeLe INTEGER` + `ALTER TABLE boucles ADD COLUMN modifieePar TEXT` + `CREATE TABLE IF NOT EXISTS suppressions (…)` | AND-07 |
 
-Le schéma est exporté et versionné dans `app/schemas/` (v3 et v4 présents)
+Le schéma est exporté et versionné dans `app/schemas/` (v3, v4 et v5 présents)
 depuis AND-02 (`exportSchema = true`, `room.schemaLocation`). Il n'existe
 **aucun test de migration** : cela exigerait un `androidTest` sur émulateur —
 dette assumée, cf. [`../explanation/architecture.md`](../explanation/architecture.md).
@@ -189,7 +258,9 @@ dette assumée, cf. [`../explanation/architecture.md`](../explanation/architectu
 | `observerParStatut(statut)` | Utilisée pour la file de supervision (`proposee`). |
 | `compterActives()` | `WHERE statut IN ('ouverte','en_cours')` — **miroir SQL de `Statut.estActive()`** (invariant I3). |
 | `prochainesEcheances(limite)` | `WHERE statut IN ('ouverte','en_cours') AND echeance IS NOT NULL ORDER BY echeance ASC` — source de données du widget. Une boucle **sans échéance n'apparaît pas** dans le widget. |
-| `observerDernieresModifs()` | `MAX(date) GROUP BY boucleId` sur `mouvements` → étiquette « Modifié le ». |
+| `observerDernieresModifs()` | `MAX(date) GROUP BY boucleId` sur `mouvements` → étiquette « Modifié le ». Distinct de la colonne `modifieeLe`, qui date la dernière écriture *de la boucle elle-même*, mouvements exclus. |
+| `supprimerAvecTrace(boucle, trace)` | `@Transaction` : insère la tombstone **puis** supprime la boucle. Chemin unique de suppression (invariant I10). |
+| `toutesLesSuppressions()` / `supprimerToutesSuppressions()` | Lecture des traces pour l'export, purge totale pour l'import « Écraser ». |
 
 ---
 
@@ -201,6 +272,8 @@ dette assumée, cf. [`../explanation/architecture.md`](../explanation/architectu
 | Mouvement | `type` + `contenu` | `{date, note}` — le JSON ne porte pas de type ; l'import fixe `type = "declaration"` |
 | Dates | epoch millis (INTEGER) | chaînes ISO-8601 |
 | `source` absente | `null` (⇒ `USER`) | à l'import, devient `import` |
+| Code appareil | **hors base** : `SharedPreferences registre-appareil.xml` | racine `codeAppareil` de l'export (provenance du fichier), lue en information sans écraser l'identité locale |
+| Tombstones | table `suppressions` | racine `suppressions`, dates en ISO-8601 (v3+ ; absente ⇒ liste vide) |
 
 Ces écarts sont **voulus** : le JSON est un contrat d'échange stable, la base
 un modèle interne. Toute modification de l'un doit vérifier l'autre.

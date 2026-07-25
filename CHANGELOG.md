@@ -11,6 +11,40 @@ commits **par lot de travail**, pas par commit.
 
 ## [Non publié]
 
+### Added
+- **Socle multi-appareils** (lot AND-07) — le registre devient duplicable sans
+  perte, sans réseau et sans coordination :
+  - **Identité de l'appareil** : un code de 1 à 4 lettres, saisi une fois sur un
+    écran bloquant au premier lancement. Sur une base déjà peuplée (restauration,
+    import), le préfixe dominant des identifiants existants est **suggéré**, pour
+    que la séquence continue sans rupture.
+  - **Identifiants préfixés par appareil** (`B-041`, `PRO-007`) : chaque appareil
+    ne compte que les siens pour calculer le suivant. Deux appareils hors ligne
+    ne peuvent plus émettre le même identifiant — la collision devient
+    structurellement impossible (ADR-02 tranché, option B ; invariant I9). Les
+    identifiants historiques ne sont **jamais** réécrits ; les non-conformes sont
+    seulement signalés dans le rapport d'import.
+  - **Horodatage de modification** : colonnes `modifieeLe` / `modifieePar`,
+    estampillées à chaque écriture. `null` se lit comme « jamais modifiée » et
+    retombe sur la date de création (données antérieures).
+  - **Traces de suppression** (*tombstones*) : table `suppressions`, écrite dans
+    la **même transaction** que la suppression. Une boucle effacée laisse
+    désormais la trace de son effacement, au lieu de devenir indistinguable
+    d'une boucle jamais reçue — sans quoi le premier import venu la
+    ressusciterait (invariant I10). AND-07 les enregistre et les transporte ;
+    leur arbitrage à la fusion reste à faire.
+  - **Format d'échange v3** : racine enrichie de `codeAppareil`, `exporteLe` et
+    `suppressions`. Les fichiers v1 et v2 restent importables sans changement.
+  - Migration Room **4 → 5**. 15 tests supplémentaires (70 au total).
+
+### Security
+- **Le code appareil est exclu des sauvegardes système**, dans `backup_rules.xml`
+  comme dans `data_extraction_rules.xml` (`<cloud-backup>` **et**
+  `<device-transfer>`). Restaurer une sauvegarde sur un second téléphone n'en
+  fait donc pas un clone qui émettrait les mêmes identifiants. L'exclusion
+  Android étant à granularité de **fichier** et non de clé, cette identité vit
+  dans un fichier de préférences dédié `registre-appareil.xml`.
+
 ### Changed
 - **Charte graphique « Encre & Patine »** (piste 1a de la proposition
   graphique) : la barre de titre passe en Encre `#0B1620`, la couleur de fond de

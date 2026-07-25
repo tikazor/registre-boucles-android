@@ -3,7 +3,7 @@ title: Invariants structurels de l'application
 type: explanation
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,Coercition,Backup,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, .github/workflows/build.yml, app/src/test/java/**
+source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,Coercition,Backup,CodeAppareil,Identifiants,Suppression,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
 ---
 
 # Invariants structurels
@@ -294,9 +294,116 @@ simplifier » dans `statutTypé()`.
 
 ---
 
+## I9 — Tout identifiant porte le préfixe de l'appareil qui l'a créé
+
+**Énoncé.** Un identifiant créé localement s'écrit `<CODE>-<numéro>`, où `CODE`
+est le code de **cet** appareil (1 à 4 lettres). Le numéro suivant est calculé
+sur les seuls identifiants portant ce préfixe. L'identité de l'appareil n'est
+**jamais** sauvegardée ni restaurée par le système.
+
+**Pourquoi.** Le registre est destiné à vivre sur plus d'un appareil. Avec la
+numérotation globale d'avant (max + 1, tous préfixes confondus), deux appareils
+hors ligne créant chacun une boucle produisaient inévitablement deux `B-042`
+différents : à la première fusion, l'un écrasait l'autre — perte silencieuse
+dans une app dont le rôle est de ne rien perdre. Le préfixe rend la collision
+**impossible sans aucune coordination** : c'est la propriété que ni un serveur,
+ni une convention d'usage n'auraient garantie aussi solidement.
+
+**Où.**
+- `CodeAppareil.kt` : `normaliserCodeAppareil()` n'accepte que `^[A-Z]{1,4}$`
+  (casse et espaces normalisés, tout le reste refusé) ;
+  `codeAppareilSuggere()` propose le préfixe dominant des ids déjà présents.
+- `Identifiants.kt` : `genererProchainId(code, ids)` ne compte **que** les ids du
+  préfixe `code` ; `idConforme()` sert à *signaler*, jamais à réécrire.
+- `MainActivity` : `IdentiteAppareilScreen` est **bloquant** au premier
+  lancement — l'app n'est pas utilisable sans identité (donc aucune boucle ne
+  peut être créée sans préfixe). `BoucleViewModel.creer()` fait
+  `repository.lireCodeAppareil() ?: return@launch` : pas de code, pas de création.
+- Stockage : `SharedPreferences` **`registre-appareil.xml`**, un fichier dédié à
+  cela seul.
+
+**L'exclusion des sauvegardes, et pourquoi elle a sa propre ligne.** Si le code
+appareil était restauré avec les données, restaurer une sauvegarde sur un second
+téléphone en ferait un clone : deux appareils portant le code `B`, émettant les
+mêmes identifiants — exactement la collision que I9 est censé rendre impossible.
+Le mécanisme d'exclusion d'Android est **à granularité de fichier** (l'attribut
+`path` désigne un fichier ou un dossier, jamais une clé) : c'est la raison pour
+laquelle le code appareil vit dans son propre fichier de préférences, et non
+avec les réglages. La règle, présente dans les deux fichiers :
+
+```xml
+<exclude domain="sharedpref" path="registre-appareil.xml" />
+```
+
+dans `backup_rules.xml` (Android ≤ 11) et dans `data_extraction_rules.xml`, sous
+**`<cloud-backup>` et `<device-transfer>`** — les deux, sinon un transfert
+d'appareil à appareil recopierait l'identité que la sauvegarde cloud exclut.
+`<exclude>` est prioritaire sur `<include>`.
+
+**Testé par.** `CodeAppareilTest` (4 tests : normalisation, refus de tout ce qui
+n'est pas 1–4 lettres, suggestion du préfixe dominant, aucune suggestion sans
+matière) et `GenererIdTest` (8 tests, dont la séquence par préfixe, l'ignorance
+des préfixes étrangers et la tolérance des ids historiques).
+
+**Ce que rien n'attrape.** Le comportement **réel** d'une restauration système
+n'est pas vérifiable en CI : il exige deux appareils physiques (ou un
+`bmgr backupnow` / `restore` manuel). La règle est conforme à la documentation
+Android, sa mise en application est prise sur parole. C'est le point le plus
+fragile du lot AND-07.
+
+**Ce qui le casserait.** Déplacer le code appareil dans `registre-prefs.xml`
+(il redeviendrait couvert par la sauvegarde), retirer l'`<exclude>` d'un seul
+des deux fichiers, ou faire retomber `genererProchainId` sur un décompte tous
+préfixes confondus « pour éviter les trous ».
+
+---
+
+## I10 — Toute suppression laisse une trace, jamais d'effacement muet
+
+**Énoncé.** Supprimer une boucle écrit une ligne dans `suppressions`
+(`boucleId`, date, appareil auteur) **dans la même transaction** que la
+suppression. Il n'existe pas d'état où une boucle a disparu sans trace.
+
+**Pourquoi.** Une absence ne dit pas pourquoi elle est là. Un appareil qui
+importe l'export d'un autre ne peut pas distinguer « cette boucle a été
+supprimée volontairement » de « cette boucle ne m'est jamais parvenue » — donc,
+sans trace, la première réimportation la **ressuscite**. La trace fait de la
+suppression une décision transmissible, au même titre qu'une clôture. C'est le
+pendant de I1 : l'app ne perd pas l'information qu'on a voulu perdre une donnée.
+
+**Où.** `Suppression.kt` → `traceSuppression()`, fonction **pure**.
+`BoucleDao.supprimerAvecTrace(boucle, trace)` est annotée **`@Transaction`** et
+insère la trace **avant** de supprimer la boucle : l'atomicité est la garantie,
+pas l'ordre. `BoucleRepository.supprimer()` est le **seul** appelant, et le seul
+chemin de suppression de l'app. Les traces sont exportées et importées (racine
+`suppressions`, format v3) ; « Écraser » remplace la table entière, les deux
+autres modes ajoutent (`REPLACE` sur `boucleId`).
+
+**Testé par.** `HorodatageTest.la_trace_de_suppression_porte_l_appareil_et_la_date`
+et `RoundTripV3Test.aller_retour_v3_complet_sans_perte` (les tombstones
+survivent à l'aller-retour JSON).
+
+**Portée exacte, pour ne pas se tromper.** AND-07 **enregistre** les traces ; il
+ne les **exploite pas encore** à la fusion. Un fichier contenant à la fois
+`B-013` et sa tombstone réinsère la boucle : l'arbitrage « la tombstone gagne »
+relève d'un lot de synchronisation ultérieur. L'invariant garanti aujourd'hui est
+la traçabilité, pas la non-résurrection.
+
+**Trou de couverture assumé.** L'atomicité de `@Transaction` n'est pas testée
+(elle exigerait une base Room instrumentée) : elle repose sur l'annotation Room
+et la revue. De même, le fait que `supprimer()` soit l'unique chemin de
+suppression est garanti par lecture du code.
+
+**Ce qui le casserait.** Un `dao.supprimer(boucle)` appelé directement depuis un
+écran, le widget ou un futur import, sans passer par `supprimerAvecTrace` — la
+boucle disparaîtrait alors sans laisser de trace, et reviendrait au premier
+import venu.
+
+---
+
 ## Comment savoir si un invariant est cassé
 
-**1. Lancer les tests.** `./gradlew test` — 55 tests. Correspondance
+**1. Lancer les tests.** `./gradlew test` — 70 tests. Correspondance
 invariant → tests qui tomberaient :
 
 | Invariant | Tests qui tomberaient |
@@ -309,6 +416,8 @@ invariant → tests qui tomberaient :
 | I6 | `CoercitionTest` (5) |
 | I7 | `FusionTest` (7) |
 | I8 | `StatutTest` (statut inconnu), `ImportInvalideTest` (rejet à l'import) |
+| I9 | `CodeAppareilTest` (4), `GenererIdTest` (8) — mais **pas** l'exclusion des sauvegardes, non testable |
+| I10 | `HorodatageTest` (trace), `RoundTripV3Test` (aller-retour des tombstones) |
 
 **2. Lire le résultat de la CI.** Le step « Vérifier l'absence de réseau
 (manifest mergé) » échoue en cas de régression sur I5 ; il bloque la publication
@@ -320,9 +429,14 @@ de la Release.
 grep -c "android.permission.INTERNET" app/src/main/AndroidManifest.xml   # attendu : 0
 grep -rn 'statut = "fermee"\|statut = "rejetee"' app/src/main/java/       # attendu : rien (I1)
 grep -rniE "okhttp|retrofit|ktor" app/src/main/java/ app/build.gradle.kts # attendu : rien (I5)
+grep -c "registre-appareil.xml" app/src/main/res/xml/backup_rules.xml \
+        app/src/main/res/xml/data_extraction_rules.xml                    # attendu : 1 et 2 (I9)
+grep -rn "dao.supprimer(" app/src/main/java/                              # attendu : rien hors supprimerAvecTrace (I10)
 ```
 
 **4. Ce que rien n'attrape.** I1 contourné par une écriture directe de statut,
-I4 contourné par un nouveau chemin d'écriture sans backup, et la
-désynchronisation SQL/`estActive()` de I3. Ces trois-là dépendent de la revue
-de code — d'où `AGENTS.md`.
+I4 contourné par un nouveau chemin d'écriture sans backup, la
+désynchronisation SQL/`estActive()` de I3, une suppression directe contournant
+I10, et — le seul qui ne soit pas même vérifiable localement — le comportement
+réel d'une restauration système pour I9. Ceux-là dépendent de la revue de code
+— d'où `AGENTS.md`.

@@ -16,17 +16,23 @@ de produire un JSON valide sans autre explication.
 
 ```json
 {
-  "version": 2,
+  "version": 3,
+  "codeAppareil": "B",
+  "exporteLe": 1769337600000,
   "boucles": [ /* obligatoire, au moins une */ ],
-  "journaux": [ /* optionnel */ ]
+  "journaux": [ /* optionnel */ ],
+  "suppressions": [ /* optionnel */ ]
 }
 ```
 
-| Champ      | Type          | Obligatoire | Rôle |
-|------------|---------------|-------------|------|
-| `version`  | entier        | non         | `2` = format courant. Absent ou `1` = format hérité (toléré, sans `journaux`). |
-| `boucles`  | tableau       | **oui**     | Les boucles. La liste ne doit pas être vide. |
-| `journaux` | tableau       | non         | Le journal (preuves de clôture / rejet). Absent = aucun. |
+| Champ          | Type          | Obligatoire | Rôle |
+|----------------|---------------|-------------|------|
+| `version`      | entier        | non         | `3` = format courant. Absent, `1` ou `2` = format hérité, toléré (cf. §9). |
+| `codeAppareil` | chaîne        | non (v3+)   | Appareil émetteur du fichier (cf. §6). Signalé à l'import. |
+| `exporteLe`    | entier        | non (v3+)   | Date d'export en **epoch millis** — métadonnée machine, seule date non ISO du document. |
+| `boucles`      | tableau       | **oui**     | Les boucles. La liste ne doit pas être vide. |
+| `journaux`     | tableau       | non         | Le journal (preuves de clôture / rejet). Absent = aucun. |
+| `suppressions` | tableau       | non (v3+)   | Traces de suppression (cf. §7 ter). Absent = aucune. |
 
 ---
 
@@ -48,6 +54,8 @@ de produire un JSON valide sans autre explication.
 | `statut`         | énum (voir §4)  | **oui**     | Valeur inconnue = import **rejeté**. |
 | `milieu`         | énum (voir §5)  | non         | `null`/absent accepté. |
 | `source`         | énum (voir §5)  | non         | Provenance. Absent à l'import = `import`. |
+| `modifieeLe`     | date ISO-8601   | non (v3+)   | Dernière modification. Absent = jamais modifiée depuis `creee`. |
+| `modifieePar`    | chaîne          | non (v3+)   | Code de l'appareil auteur de la dernière modification. |
 | `mouvements`     | tableau         | non         | Voir §7. |
 
 ---
@@ -123,14 +131,21 @@ jamais directement dans le registre actif — l'app le ramène en `proposee`.
 Chaque **producteur** utilise son propre préfixe, pour qu'aucun ne réutilise le
 numéro d'un autre :
 
-| Préfixe   | Producteur |
-|-----------|------------|
-| `B-###`   | Boucles créées **dans l'application**. |
-| `IA-###`  | Boucles **proposées par une IA**. |
+| Préfixe    | Producteur |
+|------------|------------|
+| `B-###`    | Boucles créées sur l'appareil dont le **code appareil** est `B`. |
+| `PRO-###`  | Boucles créées sur l'appareil dont le code est `PRO`. |
+| `IA-###`   | Boucles **proposées par une IA**. |
 
-L'application n'émet QUE des `B-###` et ignore les autres préfixes dans le calcul
-du prochain numéro : une IA qui numérote en `IA-###` ne provoquera jamais de
-collision. Un producteur tiers doit choisir un préfixe distinct.
+**Chaque appareil porte un code de 1 à 4 lettres majuscules** (ADR-02, tranché le
+25/07/2026), choisi au premier lancement et immuable ensuite. Un appareil n'émet
+que des ids `<SON CODE>-###` et **ne compte que les siens** pour calculer le
+suivant : deux appareils qui créent des boucles en parallèle ne peuvent donc pas
+produire le même identifiant, sans aucune coordination entre eux (invariant I9).
+
+Format attendu : `^[A-Z]{1,4}-\d{3,}$`. Un identifiant hors convention (données
+historiques) est **toléré** à l'import — jamais rejeté, jamais renuméroté — et
+seulement signalé dans le rapport d'import.
 
 Pour **enrichir** une boucle existante (mode Fusionner, §8), le producteur
 réutilise l'**id exact** de la boucle cible (typiquement un `B-###`).
@@ -165,6 +180,28 @@ Dans `boucle.mouvements` :
 
 ---
 
+## 7 ter. Objet `suppression` (racine `suppressions`, v3+)
+
+```json
+{ "boucleId": "B-013", "supprimeeLe": "2026-07-25T09:12:00Z", "supprimeePar": "B" }
+```
+
+| Champ          | Type          | Obligatoire | Notes |
+|----------------|---------------|-------------|-------|
+| `boucleId`     | chaîne        | **oui**     | Id de la boucle supprimée. |
+| `supprimeeLe`  | date ISO-8601 | **oui**     | Quand. |
+| `supprimeePar` | chaîne        | **oui**     | Code de l'appareil qui a supprimé. |
+
+Une suppression laisse **toujours** cette trace (invariant I10) : sans elle, une
+boucle effacée sur un appareil serait ressuscitée par le premier import venant de
+l'autre. Ces traces ne sont jamais purgées.
+
+> **État actuel :** les traces sont **enregistrées et échangées**, mais pas encore
+> exploitées à l'import — une boucle supprimée d'un côté n'est pas encore effacée
+> automatiquement de l'autre. C'est l'objet d'un lot ultérieur.
+
+---
+
 ## 8. Modes d'import
 
 À l'import d'un fichier alors que la base contient déjà des données,
@@ -184,7 +221,26 @@ telle quelle et n'apparaît **que** dans l'écran Supervision jusqu'à acceptati
 
 ---
 
-## 9. Exemple complet et minimal valide
+## 9. Compatibilité des versions
+
+| | v1 (hérité) | v2 | v3 (courant) |
+|---|---|---|---|
+| `version` | absent | `2` | `3` |
+| `boucles` | ✅ | ✅ | ✅ |
+| `journaux` | absent | ✅ | ✅ |
+| `tiers` | booléen | chaîne (booléen toléré) | chaîne (booléen toléré) |
+| `codeAppareil`, `exporteLe` | absent | absent | ✅ |
+| `modifieeLe`, `modifieePar` | absent | absent | ✅ |
+| `suppressions` | absent | absent | ✅ |
+
+**Les trois versions restent importables.** Tout champ ajouté depuis a une
+valeur par défaut : `version` absent = 1, `journaux`/`suppressions` absents =
+listes vides, `modifieeLe` absent = la boucle se lit comme « jamais modifiée
+depuis `creee` ». L'export écrit toujours la version courante.
+
+---
+
+## 10. Exemple complet et minimal valide
 
 ```json
 {
@@ -208,6 +264,7 @@ telle quelle et n'apparaît **que** dans l'écran Supervision jusqu'à acceptati
       ]
     }
   ],
-  "journaux": []
+  "journaux": [],
+  "suppressions": []
 }
 ```

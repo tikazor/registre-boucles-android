@@ -28,8 +28,8 @@ bug à signaler, pas une nuance à interpréter.
 | Document | Type | Contenu |
 |---|---|---|
 | [`schema.md`](schema.md) | reference | **Contrat JSON** d'échange : champs, statuts, provenance, dates, modes d'import, convention d'identifiants. Auto-suffisant — donnable tel quel à une IA. |
-| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v4** : 3 entités champ par champ, 4 enums, clés étrangères, migrations, requêtes DAO structurantes. |
-| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 8 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
+| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v5** : 4 entités champ par champ, 4 enums, code appareil et préfixe des identifiants, clés étrangères, migrations, requêtes DAO structurantes. |
+| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 10 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
 
 ---
 
@@ -47,7 +47,7 @@ bug à signaler, pas une nuance à interpréter.
 
 | Document | Contenu |
 |---|---|
-| [`explanation/invariants.md`](explanation/invariants.md) | Les 8 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
+| [`explanation/invariants.md`](explanation/invariants.md) | Les 10 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
 | [`explanation/architecture.md`](explanation/architecture.md) | Couches UI → ViewModel → Repository → Room, widget Glance, pourquoi la logique métier est en fonctions pures, rôle de chaque écran, **dette technique assumée**. |
 | [`decisions.md`](decisions.md) | Journal des décisions d'architecture (ADR). Voir ci-dessous. |
 
