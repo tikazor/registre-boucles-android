@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Boucle::class, Mouvement::class, Journal::class, Suppression::class,
-        EvenementSync::class
+        EvenementSync::class, Capture::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,6 +87,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v6 -> v7 : table `captures` (boîte de réception des notes brutes) et ses
+        // deux index. Aucune table existante n'est touchée. Pas de clé étrangère
+        // vers `boucles` : une capture ne doit jamais disparaître en cascade
+        // (cf. Capture.boucleLiee et invariant I14).
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `captures` (" +
+                        "`id` TEXT NOT NULL, `contenuBrut` TEXT NOT NULL, `titre` TEXT, " +
+                        "`appareil` TEXT NOT NULL, `appSource` TEXT, " +
+                        "`capturee` INTEGER NOT NULL, `empreinte` TEXT NOT NULL, " +
+                        "`statut` TEXT NOT NULL, `boucleLiee` TEXT, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_captures_empreinte` ON `captures` (`empreinte`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_captures_statut` ON `captures` (`statut`)")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -94,7 +112,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "registre-boucles.db"
                 ).addMigrations(
-                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+                    MIGRATION_5_6, MIGRATION_6_7
                 )
                     .build().also { INSTANCE = it }
             }

@@ -176,4 +176,36 @@ interface BoucleDao {
 
     @Query("SELECT * FROM evenements_sync ORDER BY horodatage DESC LIMIT 1")
     suspend fun dernierEvenementSync(): EvenementSync?
+
+    // ── Captures (boîte de réception) ──
+    //
+    // AUCUNE méthode de suppression n'existe ici, et c'est délibéré : une capture
+    // n'est jamais effacée, seulement marquée IGNOREE (invariant I14). Il n'y a
+    // donc ni @Delete, ni `DELETE FROM captures`, pas même pour un « nettoyage ».
+
+    @Insert
+    suspend fun insererCapture(capture: Capture)
+
+    @Update
+    suspend fun mettreAJourCapture(capture: Capture)
+
+    @Query("SELECT * FROM captures ORDER BY capturee DESC")
+    fun observerCaptures(): Flow<List<Capture>>
+
+    @Query("SELECT * FROM captures WHERE statut = :statut ORDER BY capturee DESC")
+    suspend fun capturesParStatut(statut: String): List<Capture>
+
+    @Query("SELECT * FROM captures WHERE id = :id")
+    suspend fun capture(id: String): Capture?
+
+    /** Contrôle de doublon : l'empreinte est indexée (cf. Capture.indices). */
+    @Query("SELECT * FROM captures WHERE empreinte = :empreinte LIMIT 1")
+    suspend fun captureParEmpreinte(empreinte: String): Capture?
+
+    @Query("SELECT id FROM captures")
+    suspend fun tousLesIdsCaptures(): List<String>
+
+    /** Compteur du badge de la boîte de réception (masqué si zéro). */
+    @Query("SELECT COUNT(*) FROM captures WHERE statut = 'brute'")
+    fun observerNombreCapturesBrutes(): Flow<Int>
 }
