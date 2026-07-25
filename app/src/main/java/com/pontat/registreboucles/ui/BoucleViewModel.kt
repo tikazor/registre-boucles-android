@@ -212,14 +212,37 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     // ── Supervision des propositions IA ──
 
-    /** Accepter : PROPOSEE -> OUVERTE (source IA conservée). */
-    fun accepterProposition(id: String) {
-        viewModelScope.launch { repository.accepter(id) }
+    /** Message d'échec d'une action de supervision (backup strict impossible). One-shot. */
+    private val _erreurSupervision = MutableStateFlow<String?>(null)
+    val erreurSupervision: StateFlow<String?> = _erreurSupervision.asStateFlow()
+
+    fun effacerErreurSupervision() {
+        _erreurSupervision.value = null
+    }
+
+    /**
+     * Accepter : PROPOSEE -> OUVERTE (source IA conservée) + trace automatique.
+     * @param apresAmendement true quand l'acceptation suit le flux « Amender ».
+     */
+    fun accepterProposition(id: String, apresAmendement: Boolean = false) {
+        viewModelScope.launch {
+            try {
+                repository.accepter(id, apresAmendement)
+            } catch (e: Exception) {
+                _erreurSupervision.value = e.message ?: "Action annulée : sauvegarde impossible."
+            }
+        }
     }
 
     /** Rejeter : PROPOSEE -> REJETEE avec motif obligatoire (journal DECLARATION). */
     fun rejeterProposition(id: String, motif: String) {
-        viewModelScope.launch { repository.rejeter(id, motif) }
+        viewModelScope.launch {
+            try {
+                repository.rejeter(id, motif)
+            } catch (e: Exception) {
+                _erreurSupervision.value = e.message ?: "Action annulée : sauvegarde impossible."
+            }
+        }
     }
 
     /** Backup manuel (depuis Réglages). Renvoie le nom du fichier créé (ou null). */

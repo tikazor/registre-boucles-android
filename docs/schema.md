@@ -80,6 +80,26 @@ Invariant : une boucle ne devient **terminale** que via une entrée de journal.
 Une boucle `proposee` ne peut pas être clôturée ; elle doit d'abord être
 acceptée (→ `ouverte`) ou rejetée (→ `rejetee`).
 
+### Coercition des propositions IA (la supervision est une propriété de l'app)
+
+La supervision ne dépend PAS de la bonne volonté du producteur. Le producteur
+**doit** émettre `statut: "proposee"` pour une boucle `source: "ia"` ; **s'il ne
+le fait pas, l'application corrige et trace** :
+
+- Toute boucle **nouvelle** (id absent de la base au moment de l'écriture)
+  avec `source: "ia"` est **forcée en `proposee`**, quel que soit le statut
+  déclaré. Elle passe donc obligatoirement par l'écran Supervision.
+- L'intention du producteur n'est pas perdue : si le statut déclaré différait,
+  un **mouvement `declaration`** est ajouté :
+  « Statut déclaré "<valeur>" ramené à "proposee" (source IA, supervision
+  obligatoire) ».
+- La règle vaut pour les **trois modes** d'import (Ajouter / Écraser /
+  Fusionner), pour les boucles **nouvelles** uniquement. Une boucle
+  **existante** enrichie par Fusionner conserve son statut (cf. §8).
+
+Autrement dit : `source: "ia"` + `statut: "ouverte"` dans un fichier n'entre
+jamais directement dans le registre actif — l'app le ramène en `proposee`.
+
 ---
 
 ## 5. `milieu` et `source`

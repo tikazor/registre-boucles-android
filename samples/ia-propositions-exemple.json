@@ -1,5 +1,5 @@
 {
-  "_commentaire": "Jeu d'essai « fausse IA » conforme à docs/schema.md. Contenu plausible et NON nominatif. IA-001..IA-005 = propositions (supervision). La boucle id B-001 réutilise un id du jeu registre-boucles-exemple.json pour exercer le mode Fusionner (mouvement supplémentaire + blocage divergent).",
+  "_commentaire": "Jeu d'essai « fausse IA » conforme à docs/schema.md. Contenu plausible et NON nominatif. IA-001..IA-005 = propositions (statut proposee, supervision). IA-006 déclare statut \"ouverte\" pour EXERCER LA COERCITION à l'import (source ia -> forcée en proposee + mouvement de trace). La boucle id B-001 réutilise un id du jeu registre-boucles-exemple.json pour exercer le mode Fusionner (mouvement supplémentaire + blocage divergent), pas la coercition (id existant).",
   "version": 2,
   "boucles": [
     {
@@ -75,6 +75,21 @@
       "impact": "Données sensibles au repos sans règle de protection formalisée",
       "statut": "proposee",
       "milieu": "gouvernance",
+      "source": "ia",
+      "mouvements": []
+    },
+    {
+      "id": "IA-006",
+      "type": "ACTION",
+      "titre": "Archiver les exports JSON de plus de six mois",
+      "origine": "Analyse automatique de l'ancienneté des fichiers",
+      "creee": "2026-07-22",
+      "echeance": "2026-08-20",
+      "tiers": "Équipe technique",
+      "preuveAttendue": "Dossier d'archive daté, vérifié",
+      "impact": "Accumulation d'exports obsolètes dans le stockage courant",
+      "statut": "ouverte",
+      "milieu": "pro",
       "source": "ia",
       "mouvements": []
     },

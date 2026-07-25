@@ -74,3 +74,17 @@ fun accepterProposition(boucle: Boucle): Boucle {
     }
     return boucle.copy(statut = Statut.OUVERTE.valeurStockee())
 }
+
+/**
+ * Mouvement de trace créé automatiquement à l'acceptation d'une proposition
+ * (l'acceptation, contrairement au rejet, n'est PAS terminale : c'est un
+ * mouvement, pas un journal). Pure et testable.
+ */
+fun mouvementAcceptation(boucleId: String, dateMillis: Long, apresAmendement: Boolean): Mouvement =
+    Mouvement(
+        boucleId = boucleId,
+        date = dateMillis,
+        type = "declaration",
+        contenu = if (apresAmendement) "Proposition IA acceptée après amendement"
+        else "Proposition IA acceptée"
+    )

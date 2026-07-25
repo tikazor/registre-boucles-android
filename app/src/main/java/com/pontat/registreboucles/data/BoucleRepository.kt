@@ -16,6 +16,9 @@ class BackupException(message: String, cause: Throwable? = null) : Exception(mes
 
 private const val TAG = "BoucleRepository"
 
+/** Anti-rafale : en deçà de ce délai, un backup non forcé réutilise le dernier fichier. */
+private const val ANTI_RAFALE_MS = 5 * 60 * 1000L
+
 /**
  * Point d'accès unique aux données. Toute écriture sur la table `boucles`
  * (insert / update / delete / import) déclenche la mise à jour du widget Glance.
@@ -84,22 +87,27 @@ class BoucleRepository(
 
     /**
      * Accepte une proposition : PROPOSEE -> OUVERTE, source inchangée (IA).
-     * Backup AVANT l'action de supervision (réutilise creerBackup).
+     * Backup STRICT AVANT l'action (échec = action abandonnée, erreur remontée).
+     * Trace automatique par un mouvement `declaration` (l'acceptation, contrairement
+     * au rejet, n'est pas une transition terminale : mouvement, pas journal).
+     *
+     * @param apresAmendement true quand l'acceptation vient du flux « Amender ».
      */
-    suspend fun accepter(id: String) {
+    suspend fun accepter(id: String, apresAmendement: Boolean = false) {
         val boucle = dao.obtenir(id) ?: return
-        creerBackup()
+        creerBackupStrict()   // filet AVANT l'action ; échec -> BackupException remontée
         dao.mettreAJour(accepterProposition(boucle))
+        dao.insererMouvement(mouvementAcceptation(id, System.currentTimeMillis(), apresAmendement))
         rafraichirWidget()
     }
 
     /**
      * Rejette une proposition : PROPOSEE -> REJETEE avec un motif obligatoire
      * (journal DECLARATION), via l'UNIQUE chemin d'écriture d'état terminal.
-     * Backup AVANT l'action de supervision.
+     * Backup STRICT AVANT l'action (échec = action abandonnée, erreur remontée).
      */
     suspend fun rejeter(id: String, motif: String) {
-        creerBackup()
+        creerBackupStrict()
         executerTransitionTerminale(
             clotureStore, id, Statut.REJETEE, JournalType.DECLARATION, motif,
             System.currentTimeMillis()
@@ -125,11 +133,14 @@ class BoucleRepository(
         mouvements: List<Mouvement>,
         journaux: List<Journal>
     ): Int {
-        creerBackupStrict()   // filet AVANT toute écriture : échec = import annulé
+        creerBackupStrict(forcer = true)   // filet AVANT toute écriture : échec = import annulé
         val existants = dao.tousLesIds().toSet()
-        val nouvelles = boucles.filter { it.id !in existants }
+        // Coercition : les boucles IA nouvelles sont forcées en PROPOSEE (supervision).
+        val coerce = coercerPropositionsIA(boucles, existants, System.currentTimeMillis())
+        val nouvelles = coerce.boucles.filter { it.id !in existants }
         val nouveauxIds = nouvelles.map { it.id }.toSet()
-        val nouveauxMouvements = mouvements.filter { it.boucleId in nouveauxIds }
+        val nouveauxMouvements =
+            (mouvements + coerce.mouvementsTrace).filter { it.boucleId in nouveauxIds }
         val nouveauxJournaux = journaux.filter { it.boucleId in nouveauxIds }
         dao.upsertToutes(nouvelles)
         dao.insererMouvements(nouveauxMouvements)
@@ -147,13 +158,15 @@ class BoucleRepository(
         mouvements: List<Mouvement>,
         journaux: List<Journal>
     ) {
-        creerBackupStrict()   // filet AVANT le vidage : échec = import annulé
+        creerBackupStrict(forcer = true)   // filet AVANT le vidage : échec = import annulé
         dao.supprimerTousJournaux()
         dao.supprimerTousMouvements()
         dao.supprimerToutesBoucles()
-        dao.upsertToutes(boucles)
-        dao.insererMouvements(mouvements)
-        dao.insererJournaux(completerJournaux(boucles, journaux))
+        // Après vidage, TOUTES les boucles sont nouvelles : coercition sur set vide.
+        val coerce = coercerPropositionsIA(boucles, emptySet(), System.currentTimeMillis())
+        dao.upsertToutes(coerce.boucles)
+        dao.insererMouvements(mouvements + coerce.mouvementsTrace)
+        dao.insererJournaux(completerJournaux(coerce.boucles, journaux))
         rafraichirWidget()
     }
 
@@ -171,13 +184,18 @@ class BoucleRepository(
         journaux: List<Journal>,
         prendreEntrant: Set<String>
     ) {
-        creerBackupStrict()   // filet AVANT écriture : échec = import annulé
+        creerBackupStrict(forcer = true)   // filet AVANT écriture : échec = import annulé
+        val existantes = dao.toutesLesBoucles()
+        val idsExistants = existantes.mapTo(HashSet()) { it.id }
+        // Coercition des boucles IA NOUVELLES (les existantes gardent leur statut,
+        // préservé par calculerFusion) AVANT le calcul de fusion.
+        val coerce = coercerPropositionsIA(boucles, idsExistants, System.currentTimeMillis())
         val res = calculerFusion(
-            existantes = dao.toutesLesBoucles(),
+            existantes = existantes,
             mouvementsExistants = dao.tousLesMouvements(),
             journauxExistants = dao.tousLesJournaux(),
-            entrantes = boucles,
-            mouvementsEntrants = mouvements,
+            entrantes = coerce.boucles,
+            mouvementsEntrants = mouvements + coerce.mouvementsTrace,
             journauxEntrants = journaux,
             prendreEntrant = prendreEntrant
         )
@@ -242,15 +260,25 @@ class BoucleRepository(
      * externe (aucune permission runtime). Rotation : garde les 10 plus récents.
      * STRICT : lève [BackupException] (loggée) si l'écriture échoue — utilisé
      * comme filet avant tout import destructif et par la sauvegarde manuelle.
+     *
+     * Anti-rafale : si [forcer] est faux ET que le backup le plus récent date de
+     * moins de [ANTI_RAFALE_MS], le fichier existant est RÉUTILISÉ (retour du
+     * File, aucune écriture) — plusieurs actions de supervision d'affilée ne
+     * créent qu'un seul backup au lieu d'éjecter l'historique. Les imports
+     * passent [forcer] = true pour garantir un backup frais avant écriture.
      */
-    suspend fun creerBackupStrict(): File {
+    suspend fun creerBackupStrict(forcer: Boolean = false): File {
+        val recent = dernierBackupFichier()
+        if (doitReutiliserBackup(recent?.name, System.currentTimeMillis(), forcer, ANTI_RAFALE_MS)) {
+            return recent!!
+        }
         val contenu = BackupExporter.serialiser(
             dao.toutesLesBoucles(),
             dao.tousLesMouvements(),
             dao.tousLesJournaux()
         )
         val dossier = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
-        val fichier = File(dossier, "boucles-backup-${System.currentTimeMillis()}.json")
+        val fichier = File(dossier, nomBackup(System.currentTimeMillis()))
         try {
             fichier.writeText(contenu)
         } catch (e: Exception) {
@@ -274,14 +302,15 @@ class BoucleRepository(
     }
 
     /**
-     * Backup best-effort (clôture automatique) : loggue et renvoie null en cas
-     * d'échec sans interrompre le flux appelant.
+     * Backup best-effort (clôture automatique, supervision) : loggue et renvoie
+     * null en cas d'échec sans interrompre le flux appelant. Respecte l'anti-rafale.
      */
-    suspend fun creerBackup(): File? = try {
-        creerBackupStrict()
+    suspend fun creerBackup(forcer: Boolean = false): File? = try {
+        creerBackupStrict(forcer)
     } catch (e: Exception) {
         null
     }
+
 
     /** Fichier de backup le plus récent (ou null si aucun). */
     fun dernierBackupFichier(): File? {

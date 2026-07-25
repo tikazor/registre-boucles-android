@@ -89,6 +89,18 @@ class TransitionStatutTest {
     }
 
     @Test
+    fun trace_acceptation_est_un_mouvement_declaration_au_bon_contenu() {
+        val simple = mouvementAcceptation("IA-001", 7L, apresAmendement = false)
+        assertEquals("declaration", simple.type)
+        assertEquals("IA-001", simple.boucleId)
+        assertEquals(7L, simple.date)
+        assertEquals("Proposition IA acceptée", simple.contenu)
+
+        val amende = mouvementAcceptation("IA-002", 8L, apresAmendement = true)
+        assertEquals("Proposition IA acceptée après amendement", amende.contenu)
+    }
+
+    @Test
     fun accepter_une_boucle_non_proposee_est_refuse() {
         val ouverte = Boucle(
             id = "B-001", type = "ACTION", titre = "t", origine = "o", creee = 0L, echeance = null,
