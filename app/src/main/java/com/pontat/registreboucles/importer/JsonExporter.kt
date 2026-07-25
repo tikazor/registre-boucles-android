@@ -30,21 +30,27 @@ object JsonExporter {
         journaux: List<Journal>,
         suppressions: List<Suppression> = emptyList(),
         codeAppareil: String? = null,
-        exporteLe: Long? = null
+        exporteLe: Long? = null,
+        /** boucleId -> captures d'origine (AND-09). Vide = champ `origines` omis. */
+        origines: Map<String, List<String>> = emptyMap()
     ): String = json.encodeToString(
         RegistreRacine.serializer(),
         RegistreRacine(
             version = VERSION_FORMAT_COURANTE,
             codeAppareil = codeAppareil,
             exporteLe = exporteLe,
-            boucles = mapBoucles(boucles, mouvements),
+            boucles = mapBoucles(boucles, mouvements, origines),
             journaux = mapJournaux(journaux),
             suppressions = mapSuppressions(suppressions)
         )
     )
 
     /** Mapping partagé Boucle(+mouvements) -> BoucleJson. */
-    fun mapBoucles(boucles: List<Boucle>, mouvements: List<Mouvement>): List<BoucleJson> {
+    fun mapBoucles(
+        boucles: List<Boucle>,
+        mouvements: List<Mouvement>,
+        origines: Map<String, List<String>> = emptyMap()
+    ): List<BoucleJson> {
         val mouvParBoucle = mouvements.groupBy { it.boucleId }
         return boucles.map { b ->
             BoucleJson(
@@ -65,6 +71,9 @@ object JsonExporter {
                 source = b.source,
                 modifieeLe = b.modifieeLe?.let { iso(it) },
                 modifieePar = b.modifieePar,
+                // Captures d'origine : réécrites pour qu'un aller-retour
+                // export -> import ne perde pas la traçabilité.
+                origines = origines[b.id] ?: emptyList(),
                 mouvements = (mouvParBoucle[b.id] ?: emptyList())
                     .sortedBy { it.date }
                     .map { MouvementJson(date = iso(it.date), note = it.contenu) }

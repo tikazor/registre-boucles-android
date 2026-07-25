@@ -31,6 +31,11 @@ data class ImportResult(
     val journaux: List<Journal>,
     val suppressions: List<Suppression> = emptyList(),
     val codeAppareilSource: String? = null,
+    /**
+     * Captures déclarées à l'origine de chaque boucle : boucleId -> ids de
+     * captures (AND-09). Vide pour tout fichier qui ne déclare pas `origines`.
+     */
+    val origines: Map<String, List<String>> = emptyMap(),
     /** `exporteLe` déclaré par l'émetteur (epoch millis) ; null hors v3. Sert au
      *  garde-fou d'horloge de la synchronisation. */
     val exporteLe: Long? = null,
@@ -147,6 +152,12 @@ object JsonImporter {
             journaux = journaux,
             suppressions = suppressions,
             codeAppareilSource = racine.codeAppareil,
+            origines = racine.boucles
+                .mapNotNull { b ->
+                    val ids = b.origines.map { it.trim() }.filter { it.isNotBlank() }
+                    if (ids.isEmpty()) null else b.id to ids
+                }
+                .toMap(),
             exporteLe = racine.exporteLe,
             idsNonConformes = idsNonConformes
         )

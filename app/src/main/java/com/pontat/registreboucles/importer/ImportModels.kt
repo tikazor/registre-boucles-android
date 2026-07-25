@@ -52,6 +52,13 @@ data class BoucleJson(
     val modifieeLe: String? = null,
     /** Code de l'appareil auteur de la dernière modification (v3+). */
     val modifieePar: String? = null,
+    /**
+     * Identifiants des captures qui ont produit cette proposition (AND-09).
+     * Optionnel : un fichier sans ce champ reste valide, et un identifiant
+     * inconnu localement est toléré — le lot a pu être analysé après une
+     * réinstallation, la boucle ne doit pas être refusée pour autant.
+     */
+    val origines: List<String> = emptyList(),
     val mouvements: List<MouvementJson> = emptyList()
 )
 
