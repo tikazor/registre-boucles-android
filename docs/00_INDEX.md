@@ -28,8 +28,8 @@ bug à signaler, pas une nuance à interpréter.
 | Document | Type | Contenu |
 |---|---|---|
 | [`schema.md`](schema.md) | reference | **Contrat JSON** d'échange : champs, statuts, provenance, dates, modes d'import, convention d'identifiants. Auto-suffisant — donnable tel quel à une IA. |
-| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v5** : 4 entités champ par champ, 4 enums, code appareil et préfixe des identifiants, clés étrangères, migrations, requêtes DAO structurantes. |
-| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 10 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
+| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v6** : 5 entités champ par champ, 4 enums, code appareil et préfixe des identifiants, clés étrangères, migrations, requêtes DAO structurantes. |
+| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 13 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
 
 ---
 
@@ -39,15 +39,15 @@ bug à signaler, pas une nuance à interpréter.
 
 | Document | Contenu |
 |---|---|
-| [`schema.md`](schema.md) | Contrat JSON import/export (format canonique `version: 2`, tolérance de l'ancien format). |
-| [`reference/data_model.md`](reference/data_model.md) | Tables, colonnes, enums, migrations 1→2→3→4, écarts assumés entre modèle interne et contrat JSON. |
+| [`schema.md`](schema.md) | Contrat JSON import/export (format canonique `version: 3`, tolérance des formats v1 et v2) et **protocole de synchronisation** entre appareils. |
+| [`reference/data_model.md`](reference/data_model.md) | Tables, colonnes, enums, migrations 1→2→3→4→5→6, écarts assumés entre modèle interne et contrat JSON. |
 | [`00_INDEX.md`](00_INDEX.md) | Ce document. |
 
 ### Explanation
 
 | Document | Contenu |
 |---|---|
-| [`explanation/invariants.md`](explanation/invariants.md) | Les 10 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
+| [`explanation/invariants.md`](explanation/invariants.md) | Les 13 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
 | [`explanation/architecture.md`](explanation/architecture.md) | Couches UI → ViewModel → Repository → Room, widget Glance, pourquoi la logique métier est en fonctions pures, rôle de chaque écran, **dette technique assumée**. |
 | [`decisions.md`](decisions.md) | Journal des décisions d'architecture (ADR). Voir ci-dessous. |
 
@@ -58,6 +58,7 @@ bug à signaler, pas une nuance à interpréter.
 | [`how-to/importer_des_donnees.md`](how-to/importer_des_donnees.md) | Les 3 modes (Ajouter / Fusionner / Écraser) : lequel choisir, ce que chacun garantit et détruit, où sont les backups. |
 | [`how-to/restaurer_un_backup.md`](how-to/restaurer_un_backup.md) | Restauration complète, jusque sur un appareil neuf. **Le how-to le plus important du dépôt.** |
 | [`how-to/superviser_les_propositions_ia.md`](how-to/superviser_les_propositions_ia.md) | Produire un JSON conforme, l'importer, arbitrer accepter / amender / rejeter, et la trace laissée par chaque action. |
+| [`how-to/synchroniser_deux_appareils.md`](how-to/synchroniser_deux_appareils.md) | Dossier partagé, premier appairage, sync quotidienne, arbitrage des conflits, appareil perdu. |
 | [`how-to/build_et_release.md`](how-to/build_et_release.md) | Du `git push` à l'APK installé ; que faire quand une étape de CI échoue. |
 
 ### À la racine du dépôt

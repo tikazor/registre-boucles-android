@@ -12,6 +12,40 @@ commits **par lot de travail**, pas par commit.
 ## [Non publié]
 
 ### Added
+- **Synchronisation bidirectionnelle entre appareils** (lot AND-08), par dossier
+  partagé et sans une ligne de réseau :
+  - **Protocole à un écrivain par fichier** : chaque appareil dépose son état
+    complet (format v3) dans `etat-<CODE>.json` et ne modifie jamais le fichier
+    d'un autre. Cette seule règle élimine les conflits d'écriture — la fusion
+    redevient un problème de lecture, donc de calcul (invariant I11). Le dossier
+    est choisi une fois (SAF, autorisation persistante) ; c'est l'application de
+    synchronisation de l'utilisateur qui transporte les fichiers.
+  - **Moteur de fusion en fonction pure** : `calculerFusionSync()` ne fait rien,
+    elle rend un plan que le repository applique en une transaction. C'est ce qui
+    permet de vérifier en JVM les deux propriétés difficiles — **idempotence**
+    (fusionner deux fois le même fichier ne change rien la seconde fois) et
+    **symétrie** (A fusionne B, B fusionne A, les deux bases convergent).
+  - **Règles de résolution** : union dédupliquée des mouvements et journaux ;
+    une clôture l'emporte toujours sur une version active, quelles que soient les
+    dates ; au-delà de 60 s d'écart le plus récent gagne ; en deçà, conflit et
+    aucune écriture. `id`, `creee` et `source` ne sont jamais écrasés.
+  - **Aucun écrasement silencieux** (invariant I13) : chaque champ remplacé écrit
+    un mouvement « titre : "…" remplacé par "…" (sync depuis PRO) ».
+  - **Tombstones exploitées** : une suppression plus récente que la modification
+    entrante empêche la résurrection ; plus ancienne, la boucle revient et la
+    trace disparaît. Une suppression faite ailleurs sur une boucle encore vivante
+    ici n'efface **rien** — elle ouvre un arbitrage, parce qu'effacer la boucle
+    emporterait ses mouvements et ses journaux de clôture.
+  - **Garde-fou d'horloge** : un fichier qui se déclare exporté avec plus de
+    10 minutes d'avance interrompt la fusion et demande confirmation — tout
+    l'arbitrage temporel repose sur ces dates.
+  - **Écran Synchronisation** : dossier, identité, bouton manuel, compte rendu,
+    conflits à arbitrer (réutilisant l'affichage de diff du mode « Fusionner ») et
+    **historique consultable et non modifiable** — nouvelle table
+    `evenements_sync`, jamais purgée. Migration Room **5 → 6**.
+  - **Backup strict forcé avant toute fusion** (invariant I12) : échec de
+    sauvegarde = rien n'est fusionné.
+  - 27 tests supplémentaires (97 au total), dont l'idempotence et la symétrie.
 - **Socle multi-appareils** (lot AND-07) — le registre devient duplicable sans
   perte, sans réseau et sans coordination :
   - **Identité de l'appareil** : un code de 1 à 4 lettres, saisi une fois sur un

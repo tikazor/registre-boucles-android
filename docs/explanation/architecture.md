@@ -28,7 +28,7 @@ flowchart TD
     VM[BoucleViewModel<br/>StateFlow, filtres, état d'import]
     REPO[BoucleRepository<br/>POINT D'ÉCRITURE UNIQUE]
     DAO[BoucleDao]
-    DB[(Room — registre-boucles.db v5)]
+    DB[(Room — registre-boucles.db v6)]
 
     W[BoucleWidget — Glance]
     SAF[[SAF : import / export JSON]]
@@ -97,13 +97,15 @@ Le cœur des règles est écrit en fonctions **sans dépendance Android** :
 | `genererProchainId`, `idConforme` | `Identifiants.kt` | Prochain identifiant du préfixe de cet appareil |
 | `normaliserCodeAppareil`, `codeAppareilSuggere` | `CodeAppareil.kt` | Validation du code appareil et suggestion au premier lancement |
 | `traceSuppression` | `Suppression.kt` | Trace de suppression (tombstone) |
+| `calculerFusionSync`, `appliquerPlan`, `evenementDepuisPlan`, `avanceHorloge` | `FusionSync.kt` | Fusion bidirectionnelle : le plan est **calculé** ici, appliqué par le repository. Rend testables l'idempotence et la symétrie |
+| `nomFichierEtat`, `codeDepuisNomFichier` | `DossierSync.kt` | Nommage des fichiers d'état (I11) |
 | `doitReutiliserBackup`, `ageBackupDepuisNom` | `Backup.kt` | Décision d'anti-rafale |
 | `Statut` / `Milieu` / `SourceBoucle` + extensions | `Statut.kt`, … | Prédicats du cycle de vie |
 | `estEnRetard`, `estEcheanceProche`, `joursRestantsDepuis` | `Echeance.kt` | Catégories d'échéance du tableau de bord (date du jour en paramètre, donc testables) |
 
 **Pourquoi.** Ces fonctions sont testables en **JVM pure**, sans émulateur ni
 appareil : `./gradlew test` tourne en quelques secondes et **en CI**, sur chaque
-push. C'est ce qui permet aux 70 tests de garder les invariants. Un test
+push. C'est ce qui permet aux 97 tests de garder les invariants. Un test
 d'instrumentation Android aurait coûté un émulateur en CI et n'aurait
 probablement jamais tourné.
 
@@ -199,10 +201,10 @@ Elle est nommée ici pour ne pas être redécouverte :
    + filtres + overlay de fusion dans un seul fichier. Découpage identifié comme
    un lot dédié, à faire **en préambule de la prochaine évolution UI**, pas en
    passant.
-2. **Aucun test de migration Room.** Les schémas v3, v4 et v5 sont versionnés
+2. **Aucun test de migration Room.** Les schémas v3 à v6 sont versionnés
    dans `app/schemas/`, mais vérifier une migration réelle exige un `androidTest`
-   sur émulateur. Les migrations 1→2, 2→3, 3→4, 4→5 sont de simples `ALTER TABLE
-   ADD COLUMN` / `CREATE TABLE`, et `fallbackToDestructiveMigration` n'est pas
+   sur émulateur. Les migrations 1→2, 2→3, 3→4, 4→5, 5→6 sont de simples `ALTER
+   TABLE ADD COLUMN` / `CREATE TABLE`, et `fallbackToDestructiveMigration` n'est pas
    activé : une migration défaillante ferait échouer l'ouverture de la base
    (crash visible), elle n'effacerait pas les données.
 3. **Aucun test d'UI.** Les affichages (marqueur « statut inconnu », badge de

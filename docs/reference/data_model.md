@@ -1,19 +1,19 @@
 ---
-title: Modèle de données interne (Room v5)
+title: Modèle de données interne (Room v6)
 type: reference
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,Statut,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/5.json
+source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,EvenementSync,Statut,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/6.json
 ---
 
-# Modèle de données interne (Room v5)
+# Modèle de données interne (Room v6)
 
 Ce document décrit le modèle **interne** (tables SQLite / entités Room).
 Pour la représentation **JSON** échangée à l'import/export, voir
 [`../schema.md`](../schema.md) — les deux ne sont pas identiques (voir
 « Écarts connus » en fin de document) et ne doivent pas être confondus.
 
-Base : `registre-boucles.db`, version de schéma **5**, 4 tables.
+Base : `registre-boucles.db`, version de schéma **6**, 5 tables.
 
 ---
 
@@ -135,6 +135,32 @@ fois `B-013` et sa tombstone, la boucle est réinsérée. La table constitue le
 socle de données ; l'arbitrage « la tombstone gagne-t-elle sur la boucle ? »
 relève d'un lot de synchronisation ultérieur (ADR-03 et suivants).
 
+## 3 ter. Table `evenements_sync` — entité `EvenementSync`
+
+Journal de synchronisation : une ligne par fichier d'état distant lu, échecs
+compris. Écrite une fois, **jamais modifiée ni purgée**.
+
+| Colonne | Type SQL | Nullable | Signification |
+|---|---|---|---|
+| `evenementId` | INTEGER | non (**PK**, auto-généré) | Identité technique. |
+| `horodatage` | INTEGER | non | Heure **locale** de la fusion, epoch millis. |
+| `appareilDistant` | TEXT | non | Code appareil émetteur, tel que déduit du **nom du fichier** (I11). |
+| `fichierLu` | TEXT | non | `etat-<CODE>.json`. |
+| `exporteLeDistant` | INTEGER | oui | `exporteLe` déclaré par l'émetteur. Comparé à `horodatage`, il révèle après coup une horloge décalée. |
+| `bouclesAjoutees` | INTEGER | non | Boucles insérées. |
+| `bouclesFusionnees` | INTEGER | non | Boucles existantes mises à jour. |
+| `bouclesIgnorees` | INTEGER | non | Boucles entrantes écartées par une décision (version locale plus récente, tombstone gagnante). Les boucles **identiques** ne comptent nulle part : il ne s'est rien passé. |
+| `mouvementsAjoutes` / `journauxAjoutes` | INTEGER | non | Union appliquée, traces de fusion incluses. |
+| `conflits` | INTEGER | non | Boucles laissées à l'arbitrage manuel. |
+| `resultat` | TEXT | non | `succes` / `conflits` / `echec` (`ResultatSync.valeurStockee()`). |
+| `detail` | TEXT | non | Phrase courte, lisible telle quelle (« 3 ajoutée(s), 1 à arbitrer »). |
+
+Pas de clé étrangère : l'événement survit à toute donnée qu'il décrit.
+
+**Les conflits ne sont PAS persistés.** Ils sont recalculés à chaque
+synchronisation par la fonction pure — mêmes données, mêmes conflits. Fermer
+l'application au milieu d'un arbitrage ne perd donc rien.
+
 ---
 
 ## 4. Mouvement vs Journal — la distinction centrale
@@ -242,8 +268,9 @@ n'efface jamais les données).
 | 2 → 3 | `CREATE TABLE journaux (…)` + `CREATE INDEX index_journaux_boucleId` | AND-01 |
 | 3 → 4 | `ALTER TABLE boucles ADD COLUMN source TEXT` | AND-03 |
 | 4 → 5 | `ALTER TABLE boucles ADD COLUMN modifieeLe INTEGER` + `ALTER TABLE boucles ADD COLUMN modifieePar TEXT` + `CREATE TABLE IF NOT EXISTS suppressions (…)` | AND-07 |
+| 5 → 6 | `CREATE TABLE IF NOT EXISTS evenements_sync (…)` — aucune table existante touchée | AND-08 |
 
-Le schéma est exporté et versionné dans `app/schemas/` (v3, v4 et v5 présents)
+Le schéma est exporté et versionné dans `app/schemas/` (v3 à v6 présents)
 depuis AND-02 (`exportSchema = true`, `room.schemaLocation`). Il n'existe
 **aucun test de migration** : cela exigerait un `androidTest` sur émulateur —
 dette assumée, cf. [`../explanation/architecture.md`](../explanation/architecture.md).
@@ -261,6 +288,9 @@ dette assumée, cf. [`../explanation/architecture.md`](../explanation/architectu
 | `observerDernieresModifs()` | `MAX(date) GROUP BY boucleId` sur `mouvements` → étiquette « Modifié le ». Distinct de la colonne `modifieeLe`, qui date la dernière écriture *de la boucle elle-même*, mouvements exclus. |
 | `supprimerAvecTrace(boucle, trace)` | `@Transaction` : insère la tombstone **puis** supprime la boucle. Chemin unique de suppression (invariant I10). |
 | `toutesLesSuppressions()` / `supprimerToutesSuppressions()` | Lecture des traces pour l'export, purge totale pour l'import « Écraser ». |
+| `retirerSuppression(boucleId)` | Retrait d'UNE tombstone, uniquement lors d'une résurrection décidée par le moteur de fusion. Aucune purge par ancienneté n'existe. |
+| `appliquerPlanSync(…)` | `@Transaction` : applique un `PlanFusion` **et** consigne son `EvenementSync`. Aucune décision n'y est prise (invariant I12). |
+| `observerEvenementsSync()` / `dernierEvenementSync()` | Historique de synchronisation, en lecture seule. |
 
 ---
 

@@ -197,8 +197,10 @@ boucle effacée sur un appareil serait ressuscitée par le premier import venant
 l'autre. Ces traces ne sont jamais purgées.
 
 > **État actuel :** les traces sont **enregistrées et échangées**, mais pas encore
-> exploitées à l'import — une boucle supprimée d'un côté n'est pas encore effacée
-> automatiquement de l'autre. C'est l'objet d'un lot ultérieur.
+> exploitées à l'import. En **synchronisation** (AND-08), elles le sont : une
+> tombstone plus récente que la modification entrante empêche la résurrection, et
+> une tombstone visant une boucle encore vivante ici ouvre un arbitrage manuel —
+> jamais une suppression d'office (cf. §10).
 
 ---
 
@@ -240,7 +242,76 @@ depuis `creee` ». L'export écrit toujours la version courante.
 
 ---
 
-## 10. Exemple complet et minimal valide
+## 10. Protocole de synchronisation (AND-08)
+
+Le même format v3 sert de **format d'échange entre appareils**. La
+synchronisation est manuelle et passe par un dossier partagé qu'une application
+tierce réplique ; l'application, elle, n'accède jamais au réseau.
+
+### 10.1 Nommage et propriété des fichiers
+
+| Règle | Détail |
+|---|---|
+| Nom | `etat-<CODE>.json`, où `<CODE>` est le code appareil (`^[A-Z]{1,4}$`) |
+| Écriture | Un appareil n'écrit **que** son propre fichier (invariant I11) |
+| Émetteur | Déterminé par le **nom du fichier**, pas par le champ `codeAppareil` du contenu |
+| Contenu | Format v3 **complet** : `boucles` (avec leurs `mouvements`), `journaux`, `suppressions`, plus `codeAppareil` et `exporteLe` |
+| Fichiers ignorés | Tout nom non conforme, et les copies de conflit des applis de synchro (`etat-PRO (1).json`, `etat-PRO.json.conflict`) |
+
+Un fichier illisible ou tronqué est **refusé en bloc** et consigné en échec au
+journal de synchronisation : il n'est jamais fusionné à moitié.
+
+### 10.2 Règles de résolution
+
+Appliquées dans cet ordre par `calculerFusionSync()` (fonction pure) :
+
+| # | Cas | Décision |
+|---|---|---|
+| 0 | `exporteLe` en avance de plus de **10 min** sur l'heure locale | Fusion **interrompue**, confirmation explicite demandée |
+| 1 | Mouvements et journaux | **Union** dédupliquée sur `(boucleId, date, contenu)` et `(boucleId, date, texte)` ; aucune suppression |
+| 2 | Boucle inconnue localement, sans tombstone | Insérée telle quelle |
+| 3 | Boucle inconnue localement, avec tombstone | `supprimeeLe >= derniereModification` → reste supprimée ; sinon **ressuscitée**, tombstone retirée |
+| 4a | Un seul côté **terminal** | Le côté terminal l'emporte sur tous les champs scalaires, **quelles que soient les dates** |
+| 4b | Écart des `derniereModification` **> 60 s** | Le plus récent gagne ; **chaque champ écrasé produit un mouvement** de traçage |
+| 4b | Écart **≤ 60 s** avec champs divergents | **Conflit** : rien n'est écrit, arbitrage manuel |
+| 4c | `id`, `creee`, `source` | **Jamais** écrasés |
+| 5 | Tombstone entrante visant une boucle vivante ici | **Conflit** : rien n'est supprimé (la CASCADE emporterait mouvements et journaux) |
+
+`derniereModification()` = `modifieeLe` s'il est présent, sinon `creee`. Un
+fichier v1/v2 (sans `modifieeLe`) est donc arbitré sur sa date de création.
+
+### 10.3 Traçage des écrasements
+
+Chaque champ remplacé écrit un mouvement `declaration` au libellé figé :
+
+```
+titre : "ancien titre" remplacé par "nouveau titre" (sync depuis PRO)
+```
+
+Après un arbitrage manuel, le libellé devient
+`… (arbitrage d'un conflit avec PRO)`. Une boucle `source: "ia"` reçue avec un
+statut actif est tracée par
+`Boucle IA reçue de PRO avec le statut "ouverte" (appareil pair, supervision non rejouée)`.
+
+### 10.4 Propriétés garanties
+
+- **Idempotence** : fusionner deux fois le même fichier ne change rien la seconde
+  fois. Une boucle adoptée conserve le `modifieeLe` / `modifieePar` de
+  l'**émetteur** — l'estampiller localement casserait cette propriété.
+- **Symétrie** : A fusionne le fichier de B, puis B celui de A → les deux bases
+  convergent, et il ne reste plus rien à échanger.
+- **Aucune perte** : mouvements et journaux ne sont jamais supprimés, et aucun
+  champ n'est écrasé sans trace.
+
+### 10.5 Ce que le protocole ne fait pas
+
+Aucune propagation automatique des suppressions, aucune fusion automatique
+(pas de tâche de fond), aucune coercition des propositions IA sur ce canal —
+le dossier partagé est un canal de confiance, comme l'appareil lui-même.
+
+---
+
+## 11. Exemple complet et minimal valide
 
 ```json
 {

@@ -3,7 +3,7 @@ title: Invariants structurels de l'application
 type: explanation
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,Coercition,Backup,CodeAppareil,Identifiants,Suppression,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
+source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,FusionSync,DossierSync,EvenementSync,Coercition,Backup,CodeAppareil,Identifiants,Suppression,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
 ---
 
 # Invariants structurels
@@ -401,9 +401,141 @@ import venu.
 
 ---
 
+## I11 — Un appareil n'écrit que son propre fichier d'état
+
+**Énoncé.** Dans le dossier partagé, cet appareil écrit **uniquement**
+`etat-<SON CODE>.json`. Il lit les fichiers des autres, il ne les modifie jamais.
+
+**Pourquoi.** C'est la règle qui supprime le problème le plus dur de la
+synchronisation par fichier : l'écriture concurrente. Deux appareils qui
+écriraient un fichier commun produiraient, selon le service de synchro, un
+écrasement silencieux ou un fichier « de conflit » que personne ne relit. En
+donnant à chacun son fichier, il n'y a **jamais** deux écrivains pour un même
+octet — la fusion redevient un problème de lecture, qui se traite par du calcul
+(cf. I13) et non par de la chance.
+
+**Où.**
+- `DossierSync.kt` : `nomFichierEtat(code)` construit le seul nom que l'on écrit,
+  et `DossierSyncSaf.ecrireEtat()` ne prend que le code **local** en paramètre —
+  la fonction est structurellement incapable d'écrire ailleurs.
+- `DossierSyncSaf.listerEtats(dossier, codeLocal)` saute notre propre fichier
+  (on ne se relit pas) et ignore tout nom non conforme.
+- `codeDepuisNomFichier()` refuse les copies de conflit (`etat-PRO (1).json`,
+  `etat-PRO.json.conflict`) : un fichier dupliqué est un fichier dont on ne sait
+  pas s'il est à jour, donc on ne le fusionne pas.
+- `BoucleRepository.synchroniser()` prend le code émetteur dans le **nom du
+  fichier**, pas dans son contenu : un fichier ne peut pas se prétendre émis par
+  un autre appareil que celui dont il porte le nom.
+
+**Testé par.** `FichierEtatTest` (4 tests) : nom dérivé du code, code extrait
+d'un nom conforme, refus des noms non conformes, refus des copies de conflit.
+
+**Trou de couverture assumé.** Qu'un appareil n'écrive effectivement que son
+fichier n'est pas vérifié par un test (SAF exige un appareil) : c'est garanti par
+la signature de `ecrireEtat()` et la lecture du code.
+
+**Ce qui le casserait.** Un « nettoyage » du dossier qui supprimerait ou
+réécrirait le fichier d'un autre appareil, ou une évolution qui prendrait le code
+émetteur dans le champ `codeAppareil` du contenu au lieu du nom de fichier.
+
+---
+
+## I12 — Toute fusion est précédée d'un backup strict
+
+**Énoncé.** `synchroniser()` crée une sauvegarde complète **forcée** avant de lire
+le premier fichier. Si elle échoue, aucune fusion n'a lieu.
+
+**Pourquoi.** C'est I4 étendu au canal le plus risqué. Un import, l'utilisateur le
+déclenche fichier en main ; une fusion, elle, applique des décisions calculées sur
+des données venues d'ailleurs. Le seul recours crédible en cas de résultat non
+voulu est un état d'avant, sur disque.
+
+**Où.** `BoucleRepository.synchroniser()` : `creerBackupStrict(forcer = true)` en
+**première ligne**, avant `listerEtats()`. `forcer = true` court-circuite
+l'anti-rafale de 5 minutes : une fusion a toujours son propre point de retour, même
+si une clôture vient d'en créer un. L'exception remonte au `ViewModel`
+(`erreurSync`) et s'affiche : jamais d'échec muet.
+
+**Et l'atomicité.** Le plan de fusion est appliqué par
+`BoucleDao.appliquerPlanSync()`, annotée `@Transaction`, qui écrit les boucles, les
+mouvements, les journaux, les tombstones **et** la ligne de journal de
+synchronisation en une seule transaction. Il n'existe pas d'état où une fusion
+s'est appliquée sans laisser sa trace, ni l'inverse.
+
+**Testé par.** *Aucun test unitaire* — le `Repository` dépend de Room et d'un
+`Context`. Garanti par lecture du code, comme I4.
+
+**Ce qui le casserait.** Un chemin de fusion « rapide » qui sauterait le backup
+« parce que le plan est petit », ou le passage de `forcer` à `false`.
+
+---
+
+## I13 — Aucun écrasement silencieux
+
+**Énoncé.** Quand une fusion remplace la valeur d'un champ, elle écrit un
+mouvement qui dit quel champ, quelle ancienne valeur, quelle nouvelle valeur et
+depuis quel appareil. Et quand elle ne peut pas trancher, elle n'écrase **rien** :
+elle demande un arbitrage.
+
+**Pourquoi.** Un registre-mémoire peut accepter d'être écrasé — deux appareils
+finissent par devoir se mettre d'accord — mais il ne peut pas accepter de perdre
+l'information *qu'il l'a été*. Sans cette règle, une phrase modifiée sur l'autre
+appareil disparaîtrait sans laisser de trace, et la seule façon de s'en apercevoir
+serait de se souvenir de ce qu'on avait écrit.
+
+**Où.** `FusionSync.kt` :
+- `calculerFusionSync()` est **pure** : elle ne fait rien, elle rend un
+  `PlanFusion`. Chaque champ écrasé produit un `Mouvement` de type `declaration`
+  au libellé figé — `titre : "ancien" remplacé par "nouveau" (sync depuis PRO)` ;
+- au-delà de la tolérance de **60 s**, le plus récent gagne (avec traçage) ; en
+  deçà, avec des champs divergents, c'est un `ConflitSync`
+  (`HORODATAGE_TROP_PROCHE`) et le plan n'écrit rien ;
+- une tombstone entrante visant une boucle vivante ici est un
+  `ConflitSync.SUPPRIMEE_A_DISTANCE` : rien n'est effacé (la CASCADE emporterait
+  mouvements et journaux de clôture, ce que l'app s'interdit) ;
+- un côté terminal l'emporte sur un côté actif, quelles que soient les dates —
+  et cet écrasement est tracé comme les autres ;
+- `id`, `creee` et `source` ne sont jamais écrasés ;
+- le garde-fou d'horloge (`avanceHorloge`, marge de **10 minutes**) interrompt la
+  fusion plutôt que d'arbitrer sur des dates invraisemblables.
+
+Côté arbitrage manuel, `arbitrerPrendreDistant()` trace de la même façon, et
+`arbitrerGarderLocal()` ne réécrit aucun champ : il réestampille la boucle, ce qui
+fait converger l'autre appareil par la règle du plus récent.
+
+**Testé par.** `FusionSyncTest` (19 tests) — dont le libellé exact des traces,
+l'absence d'écriture en cas de conflit, la préservation d'`id`/`creee`/`source`,
+les deux sens de la règle terminale, le garde-fou d'horloge, et surtout
+**l'idempotence** (fusionner deux fois le même fichier ne change rien la seconde
+fois, ni la troisième) et la **symétrie** (A fusionne B, B fusionne A, les deux
+bases convergent et il ne reste rien à échanger). `JournalSyncTest` (4 tests)
+vérifie la trace consignée au journal de synchronisation.
+
+**Comment l'idempotence tient.** Une boucle adoptée conserve le `modifieeLe` /
+`modifieePar` **de l'émetteur**, et non l'heure locale. Si le repository la
+réestampillait, la fusion suivante verrait un écart de quelques secondes et
+inventerait un conflit. C'est écrit dans le contrat de `PlanFusion` et vérifié par
+le test d'idempotence — le piège le plus facile à retomber dedans.
+
+**Portée exacte.** La coercition des propositions IA (I6) **ne s'applique pas** au
+canal de synchronisation : un fichier d'état vient d'un appareil pair, dont la
+supervision vaut décision (arbitrage du commanditaire, 2026-07-25). L'insertion
+reste tracée par un mouvement « Boucle IA reçue de <CODE> avec le statut "…"
+(appareil pair, supervision non rejouée) ». Conséquence à connaître : un fichier
+nommé `etat-XX.json` déposé dans le dossier partagé par un tiers entrerait avec
+son statut déclaré. Le dossier partagé est donc un canal de confiance, au même
+titre que l'appareil lui-même.
+
+**Ce qui le casserait.** Élargir la tolérance de 60 s « pour avoir moins de
+conflits » (on trancherait alors des cas indécidables), estampiller localement les
+boucles adoptées (idempotence perdue), ou appliquer un plan sans ses
+`mouvementsAInserer`.
+
+---
+
 ## Comment savoir si un invariant est cassé
 
-**1. Lancer les tests.** `./gradlew test` — 70 tests. Correspondance
+**1. Lancer les tests.** `./gradlew test` — 97 tests. Correspondance
 invariant → tests qui tomberaient :
 
 | Invariant | Tests qui tomberaient |
@@ -418,6 +550,9 @@ invariant → tests qui tomberaient :
 | I8 | `StatutTest` (statut inconnu), `ImportInvalideTest` (rejet à l'import) |
 | I9 | `CodeAppareilTest` (4), `GenererIdTest` (8) — mais **pas** l'exclusion des sauvegardes, non testable |
 | I10 | `HorodatageTest` (trace), `RoundTripV3Test` (aller-retour des tombstones) |
+| I11 | `FichierEtatTest` (4) — mais pas l'écriture SAF elle-même |
+| I12 | *aucun test unitaire* → lecture de code (comme I4) |
+| I13 | `FusionSyncTest` (19, dont idempotence et symétrie), `JournalSyncTest` (4) |
 
 **2. Lire le résultat de la CI.** Le step « Vérifier l'absence de réseau
 (manifest mergé) » échoue en cas de régression sur I5 ; il bloque la publication
@@ -432,6 +567,9 @@ grep -rniE "okhttp|retrofit|ktor" app/src/main/java/ app/build.gradle.kts # atte
 grep -c "registre-appareil.xml" app/src/main/res/xml/backup_rules.xml \
         app/src/main/res/xml/data_extraction_rules.xml                    # attendu : 1 et 2 (I9)
 grep -rn "dao.supprimer(" app/src/main/java/                              # attendu : rien hors supprimerAvecTrace (I10)
+grep -rn "ecrireEtat(" app/src/main/java/                                 # attendu : le seul appel passe le code LOCAL (I11)
+grep -n "creerBackupStrict(forcer = true)" \
+     app/src/main/java/com/pontat/registreboucles/data/BoucleRepository.kt # attendu : 4 (3 imports + sync, I12)
 ```
 
 **4. Ce que rien n'attrape.** I1 contourné par une écriture directe de statut,
