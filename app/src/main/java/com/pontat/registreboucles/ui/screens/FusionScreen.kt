@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pontat.registreboucles.data.ConflitFusion
+import com.pontat.registreboucles.ui.components.ListeDiffs
+import com.pontat.registreboucles.ui.components.OptionChoix
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.theme.Mnemosyne
 
@@ -139,17 +141,7 @@ private fun CarteConflit(
             fontSize = 12.sp, fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        conflit.diffs.forEach { d ->
-            Column {
-                Text(
-                    d.champ.uppercase(),
-                    fontSize = 9.5.sp, fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                )
-                Text("• existant : ${d.existant ?: "—"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text("• entrant : ${d.entrant ?: "—"}", fontSize = 12.sp, color = Mnemosyne.couleurs.accent)
-            }
-        }
+        ListeDiffs(conflit.diffs)
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -157,21 +149,5 @@ private fun CarteConflit(
             OptionChoix("Garder l'existant", !prendreEntrant, Modifier.weight(1f)) { onChoix(false) }
             OptionChoix("Prendre l'entrant", prendreEntrant, Modifier.weight(1f)) { onChoix(true) }
         }
-    }
-}
-
-@Composable
-private fun OptionChoix(label: String, actif: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val fond = if (actif) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-    val texte = if (actif) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    Box(
-        modifier
-            .background(fond, RoundedCornerShape(11.dp))
-            .then(if (actif) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(11.dp)))
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = texte)
     }
 }

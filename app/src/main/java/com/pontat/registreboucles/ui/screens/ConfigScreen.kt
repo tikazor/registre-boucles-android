@@ -50,7 +50,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ConfigScreen(
     vm: BoucleViewModel,
-    onRetour: () -> Unit
+    onRetour: () -> Unit,
+    onOuvrirSync: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val depart = remember { vm.options.value }
@@ -168,6 +169,26 @@ fun ConfigScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            HorizontalDivider()
+
+            // ── Synchronisation entre appareils ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Synchronisation",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Échange par dossier partagé avec tes autres appareils. Manuelle : " +
+                        "rien ne part ni n'arrive sans que tu le demandes, et l'application " +
+                        "n'accède jamais au réseau.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = onOuvrirSync, modifier = Modifier.fillMaxWidth()) {
+                    Text("Ouvrir la synchronisation")
+                }
             }
             HorizontalDivider()
 

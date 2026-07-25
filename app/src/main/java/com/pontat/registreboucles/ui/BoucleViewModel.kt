@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
 import com.pontat.registreboucles.data.ConflitFusion
+import com.pontat.registreboucles.data.ConflitSync
+import com.pontat.registreboucles.data.EvenementSync
 import com.pontat.registreboucles.data.Journal
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.ListeOptions
@@ -146,6 +148,8 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
             if (_codeAppareil.value == null) {
                 _codeSuggere.value = codeAppareilSuggere(repository.tousLesIds())
             }
+            // Nom lisible du dossier partagé (lecture SAF, donc hors thread principal).
+            _nomDossierSync.value = repository.nomDossierSync()
         }
     }
 
@@ -415,6 +419,105 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     fun effacerErreurImport() {
         _erreurImport.value = null
+    }
+
+    // ── Synchronisation par dossier partagé (AND-08) ──
+    //
+    // Les conflits ne sont PAS persistés : ils sont recalculés à chaque
+    // synchronisation par la fonction pure (mêmes données -> mêmes conflits). Une
+    // app fermée au milieu d'un arbitrage ne perd donc rien : la prochaine
+    // synchronisation les présente à nouveau.
+
+    private val _dossierSync = MutableStateFlow(repository.lireDossierSync())
+    val dossierSync: StateFlow<Uri?> = _dossierSync.asStateFlow()
+
+    private val _nomDossierSync = MutableStateFlow<String?>(null)
+    val nomDossierSync: StateFlow<String?> = _nomDossierSync.asStateFlow()
+
+    private val _syncEnCours = MutableStateFlow(false)
+    val syncEnCours: StateFlow<Boolean> = _syncEnCours.asStateFlow()
+
+    private val _rapportSync = MutableStateFlow<BoucleRepository.RapportSync?>(null)
+    val rapportSync: StateFlow<BoucleRepository.RapportSync?> = _rapportSync.asStateFlow()
+
+    private val _erreurSync = MutableStateFlow<String?>(null)
+    val erreurSync: StateFlow<String?> = _erreurSync.asStateFlow()
+
+    val evenementsSync: StateFlow<List<EvenementSync>> = repository.observerEvenementsSync()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun definirDossierSync(uri: Uri) {
+        repository.ecrireDossierSync(uri)
+        _dossierSync.value = uri
+        viewModelScope.launch { _nomDossierSync.value = repository.nomDossierSync() }
+    }
+
+    /**
+     * Lance une synchronisation. [confirmeHorloge] n'est vrai que si l'utilisateur
+     * a explicitement accepté un fichier dont l'horloge est en avance.
+     */
+    fun synchroniser(confirmeHorloge: Boolean = false) {
+        if (_syncEnCours.value) return
+        viewModelScope.launch {
+            _syncEnCours.value = true
+            _erreurSync.value = null
+            try {
+                _rapportSync.value = repository.synchroniser(confirmeHorloge)
+            } catch (e: Exception) {
+                _erreurSync.value = e.message ?: "Synchronisation impossible."
+            } finally {
+                _syncEnCours.value = false
+            }
+        }
+    }
+
+    /** Retire un conflit du rapport une fois arbitré (les autres restent affichés). */
+    private fun retirerConflit(boucleId: String) {
+        val rapport = _rapportSync.value ?: return
+        _rapportSync.value = rapport.copy(conflits = rapport.conflits.filterNot { it.boucleId == boucleId })
+    }
+
+    fun arbitrerGarderLocal(conflit: ConflitSync) {
+        viewModelScope.launch {
+            try {
+                repository.arbitrerGarderLocal(conflit.boucleId)
+                retirerConflit(conflit.boucleId)
+            } catch (e: Exception) {
+                _erreurSync.value = e.message ?: "Arbitrage impossible."
+            }
+        }
+    }
+
+    fun arbitrerPrendreDistant(conflit: ConflitSync) {
+        val entrante = conflit.entrante ?: return
+        viewModelScope.launch {
+            try {
+                repository.arbitrerPrendreDistant(entrante, conflit.appareilDistant)
+                retirerConflit(conflit.boucleId)
+            } catch (e: Exception) {
+                _erreurSync.value = e.message ?: "Arbitrage impossible."
+            }
+        }
+    }
+
+    /** Arbitrage d'une suppression distante : effacer ici aussi (avec tombstone). */
+    fun arbitrerSupprimerIci(conflit: ConflitSync) {
+        viewModelScope.launch {
+            try {
+                repository.arbitrerSupprimerIci(conflit.boucleId)
+                retirerConflit(conflit.boucleId)
+            } catch (e: Exception) {
+                _erreurSync.value = e.message ?: "Arbitrage impossible."
+            }
+        }
+    }
+
+    fun effacerErreurSync() {
+        _erreurSync.value = null
+    }
+
+    fun effacerRapportSync() {
+        _rapportSync.value = null
     }
 
     class Factory(private val repository: BoucleRepository) : ViewModelProvider.Factory {
