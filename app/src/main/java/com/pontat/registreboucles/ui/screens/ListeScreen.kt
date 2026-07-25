@@ -93,6 +93,8 @@ import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.estActive
 import com.pontat.registreboucles.data.estIA
 import com.pontat.registreboucles.data.estProposition
+import com.pontat.registreboucles.data.estTerminal
+import com.pontat.registreboucles.data.statutTypé
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
 import com.pontat.registreboucles.ui.couleurStatut
@@ -193,7 +195,8 @@ fun ListeScreen(
             enRetard = ouv.count { it.echeance != null && joursRestants(it.echeance) < 0 },
             bientot = ouv.count { it.echeance != null && joursRestants(it.echeance) in 0..7 },
             total = registre.size,
-            fermees = registre.size - ouv.size
+            // « Fermées » = réellement terminales (un statut inconnu n'est pas compté ici).
+            fermees = registre.count { it.estTerminal() }
         )
     }
     val liste = remember(registre, filtre, recherche, filtreMilieu) {
@@ -202,7 +205,9 @@ fun ListeScreen(
                 when (filtre) {
                     FiltreStatut.TOUTES -> true
                     FiltreStatut.OUVERTES -> it.estActive()
-                    FiltreStatut.FERMEES -> !it.estActive()
+                    // « Fermées » = réellement terminales : un statut inconnu (legacy)
+                    // n'y atterrit plus par défaut, il reste visible dans « Toutes ».
+                    FiltreStatut.FERMEES -> it.estTerminal()
                 }
             }
             .filter { filtreMilieu == null || Milieu.depuis(it.milieu) == filtreMilieu }
@@ -572,6 +577,8 @@ private fun CarteBoucle(
                     BadgeStatut(boucle.statut)
                     // Marqueur discret pour les boucles proposées puis acceptées depuis une IA.
                     if (boucle.estIA()) EtiquetteIA()
+                    // Statut inconnu (legacy) : jamais masqué, signalé discrètement.
+                    if (boucle.statutTypé() == null) EtiquetteInconnu()
                 }
             }
 
@@ -801,6 +808,18 @@ fun BadgeStatut(statut: String) {
             fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
         )
+    }
+}
+
+/** Marqueur discret d'un statut non reconnu (donnée legacy jamais masquée). */
+@Composable
+private fun EtiquetteInconnu() {
+    Box(
+        Modifier
+            .border(1.dp, Warn, RoundedCornerShape(50))
+            .padding(horizontal = 9.dp, vertical = 3.dp)
+    ) {
+        Text("statut inconnu", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Warn)
     }
 }
 

@@ -60,6 +60,20 @@ class StatutTest {
     }
 
     @Test
+    fun statut_inconnu_en_base_n_est_ni_actif_ni_terminal_mais_reste_visible() {
+        val legacy = Boucle(
+            id = "B-000", type = "ACTION", titre = "t", origine = "o", creee = 0L, echeance = null,
+            tiers = null, preuveAttendue = "p", blocage = null, impact = "i", defaut = null,
+            statut = "archivee", milieu = null, source = null   // statut inconnu (legacy)
+        )
+        assertNull(legacy.statutTypé())
+        assertFalse(legacy.estActive())     // exclue de « Ouvertes »
+        assertFalse(legacy.estTerminal())   // exclue de « Fermées »
+        assertFalse(legacy.estProposition())
+        // -> visible uniquement dans « Toutes » (aucun filtre ne la capture), jamais masquée.
+    }
+
+    @Test
     fun valeur_stockee_est_reversible() {
         for (s in Statut.entries) {
             assertEquals(s.name.lowercase(), s.valeurStockee())
