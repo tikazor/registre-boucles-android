@@ -80,11 +80,22 @@ fun accepterProposition(boucle: Boucle): Boucle {
  * (l'acceptation, contrairement au rejet, n'est PAS terminale : c'est un
  * mouvement, pas un journal). Pure et testable.
  */
-fun mouvementAcceptation(boucleId: String, dateMillis: Long, apresAmendement: Boolean): Mouvement =
+fun mouvementAcceptation(
+    boucleId: String,
+    dateMillis: Long,
+    apresAmendement: Boolean,
+    /**
+     * Captures d'origine (AND-09). Vide -> libellé inchangé mot pour mot par
+     * rapport à AND-04 : ce lot COMPLÈTE la trace, il ne la remplace pas.
+     */
+    origines: List<String> = emptyList()
+): Mouvement =
     Mouvement(
         boucleId = boucleId,
         date = dateMillis,
         type = "declaration",
-        contenu = if (apresAmendement) "Proposition IA acceptée après amendement"
-        else "Proposition IA acceptée"
+        contenu = (
+            if (apresAmendement) "Proposition IA acceptée après amendement"
+            else "Proposition IA acceptée"
+            ) + mentionOrigines(origines)
     )

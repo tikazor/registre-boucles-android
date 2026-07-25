@@ -124,7 +124,15 @@ class BoucleRepository(
         val boucle = dao.obtenir(id) ?: return
         creerBackupStrict()   // filet AVANT l'action ; échec -> BackupException remontée
         dao.mettreAJour(estampiller(accepterProposition(boucle)))
-        dao.insererMouvement(mouvementAcceptation(id, System.currentTimeMillis(), apresAmendement))
+        // Les captures d'origine aboutissent : elles passent TRAITEE et portent la
+        // boucle produite. C'est ICI que la décision est prise, pas à l'import.
+        val liees = dao.capturesDeBoucle(id)
+        val maintenant = System.currentTimeMillis()
+        transitionsCapturesApresSupervision(liees, DecisionSupervision.ACCEPTATION, id)
+            .forEach { dao.mettreAJourCapture(it) }
+        dao.insererMouvement(
+            mouvementAcceptation(id, maintenant, apresAmendement, liees.map { it.id })
+        )
         rafraichirWidget()
     }
 
@@ -139,6 +147,12 @@ class BoucleRepository(
             clotureStore, id, Statut.REJETEE, JournalType.DECLARATION, motif,
             System.currentTimeMillis()
         )
+        // La proposition était mauvaise, la matière première reste bonne : les
+        // captures d'origine repassent BRUTE et redeviennent analysables. Sauf
+        // celles déjà TRAITEE par une autre proposition (TRAITEE est absorbant).
+        transitionsCapturesApresSupervision(
+            dao.capturesDeBoucle(id), DecisionSupervision.REJET, id
+        ).forEach { dao.mettreAJourCapture(it) }
         rafraichirWidget()
     }
 
@@ -159,7 +173,9 @@ class BoucleRepository(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
         journaux: List<Journal>,
-        suppressions: List<Suppression> = emptyList()
+        suppressions: List<Suppression> = emptyList(),
+        /** boucleId -> captures d'origine déclarées par le fichier (AND-09). */
+        origines: Map<String, List<String>> = emptyMap()
     ): Int {
         creerBackupStrict(forcer = true)   // filet AVANT toute écriture : échec = import annulé
         val existants = dao.tousLesIds().toSet()
@@ -175,6 +191,9 @@ class BoucleRepository(
         dao.insererJournaux(completerJournaux(nouvelles, nouveauxJournaux))
         // Tombstones entrantes : enregistrées, pas encore exploitées (AND-07).
         dao.insererSuppressions(suppressions)
+        // Liens déclarés par les propositions : enregistrés MAIS les captures ne
+        // changent PAS de statut. Une proposition n'est pas une décision (AND-09).
+        enregistrerLiensDeclares(origines, nouveauxIds)
         rafraichirWidget()
         return nouvelles.size
     }
@@ -187,7 +206,8 @@ class BoucleRepository(
         boucles: List<Boucle>,
         mouvements: List<Mouvement>,
         journaux: List<Journal>,
-        suppressions: List<Suppression> = emptyList()
+        suppressions: List<Suppression> = emptyList(),
+        origines: Map<String, List<String>> = emptyMap()
     ) {
         creerBackupStrict(forcer = true)   // filet AVANT le vidage : échec = import annulé
         dao.supprimerTousJournaux()
@@ -201,6 +221,7 @@ class BoucleRepository(
         dao.insererMouvements(mouvements + coerce.mouvementsTrace)
         dao.insererJournaux(completerJournaux(coerce.boucles, journaux))
         dao.insererSuppressions(suppressions)
+        enregistrerLiensDeclares(origines, coerce.boucles.mapTo(HashSet()) { it.id })
         rafraichirWidget()
     }
 
@@ -217,7 +238,8 @@ class BoucleRepository(
         mouvements: List<Mouvement>,
         journaux: List<Journal>,
         prendreEntrant: Set<String>,
-        suppressions: List<Suppression> = emptyList()
+        suppressions: List<Suppression> = emptyList(),
+        origines: Map<String, List<String>> = emptyMap()
     ) {
         creerBackupStrict(forcer = true)   // filet AVANT écriture : échec = import annulé
         val existantes = dao.toutesLesBoucles()
@@ -240,7 +262,24 @@ class BoucleRepository(
         // Les nouvelles boucles terminales sans journal reçoivent une entrée par défaut.
         dao.insererJournaux(completerJournaux(res.bouclesNouvelles, res.journauxAjoutes))
         dao.insererSuppressions(suppressions)
+        enregistrerLiensDeclares(origines, res.bouclesNouvelles.mapTo(HashSet()) { it.id })
         rafraichirWidget()
+    }
+
+    /**
+     * Enregistre les liens déclarés par le champ `origines` des propositions
+     * importées, pour les seules boucles réellement entrées. Le statut des captures
+     * n'est PAS touché : une proposition n'est pas une décision (AND-09, étape 3).
+     * Un identifiant de capture inconnu localement est conservé tel quel — le lien
+     * reste une information même si la note n'est pas (ou plus) sur cet appareil.
+     */
+    private suspend fun enregistrerLiensDeclares(
+        origines: Map<String, List<String>>,
+        bouclesEntrees: Set<String>
+    ) {
+        val retenues = origines.filterKeys { it in bouclesEntrees }
+        if (retenues.isEmpty()) return
+        dao.insererLiens(liensDepuisOrigines(retenues, System.currentTimeMillis()))
     }
 
     /** Conflits de fusion (id existant + champ scalaire divergent) pour arbitrage UI. */
@@ -465,9 +504,34 @@ class BoucleRepository(
         dao.capture(id)?.let { dao.mettreAJourCapture(it.versBrute()) }
     }
 
-    /** Lie la boucle produite et passe la capture en TRAITEE (jamais sans lien). */
+    /**
+     * Lie la boucle produite et passe la capture en TRAITEE (jamais sans lien).
+     * Écrit la table de liaison ET `boucleLiee` dans la MÊME transaction : les
+     * deux représentations du lien ne peuvent pas diverger (invariant I16).
+     */
     suspend fun lierCaptureABoucle(captureId: String, boucleId: String) {
-        dao.capture(captureId)?.let { dao.mettreAJourCapture(it.versTraitee(boucleId)) }
+        val capture = dao.capture(captureId) ?: return
+        dao.lierCaptureEtBoucle(
+            capture.versTraitee(boucleId),
+            lienCapture(captureId, boucleId, OrigineLien.MANUELLE, System.currentTimeMillis())
+        )
+    }
+
+    /** Liens capture <-> boucle, pour afficher l'origine d'une boucle et l'inverse. */
+    fun observerLiens(): Flow<List<CaptureBoucle>> = dao.observerLiens()
+
+    /** Captures réellement présentes en base ayant produit cette boucle. */
+    suspend fun capturesDeBoucle(boucleId: String): List<Capture> = dao.capturesDeBoucle(boucleId)
+
+    /**
+     * Parmi des identifiants de captures déclarés par un fichier, ceux qui sont
+     * inconnus ici. Tolérés, jamais bloquants : le lot a pu être analysé après une
+     * réinstallation. Ils sont simplement signalés dans le rapport d'import.
+     */
+    suspend fun capturesInconnues(ids: Collection<String>): List<String> {
+        if (ids.isEmpty()) return emptyList()
+        val connus = dao.tousLesIdsCaptures().toSet()
+        return ids.distinct().filterNot { it in connus }
     }
 
     /**
