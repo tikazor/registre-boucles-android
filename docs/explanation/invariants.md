@@ -3,7 +3,7 @@ title: Invariants structurels de l'application
 type: explanation
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,FusionSync,DossierSync,EvenementSync,Coercition,Backup,CodeAppareil,Identifiants,Suppression,Capture,StatutCapture,EmpreinteCapture,PreparationCapture,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
+source: app/src/main/java/com/pontat/registreboucles/data/{Cloture,Statut,Fusion,FusionSync,DossierSync,EvenementSync,Coercition,Backup,CodeAppareil,Identifiants,Suppression,Capture,StatutCapture,EmpreinteCapture,PreparationCapture,CaptureBoucle,SupervisionCaptures,BoucleRepository,BoucleDao}.kt, app/src/main/AndroidManifest.xml, app/src/main/res/xml/{backup_rules,data_extraction_rules}.xml, .github/workflows/build.yml, app/src/test/java/**
 ---
 
 # Invariants structurels
@@ -624,9 +624,61 @@ C'est une règle de revue de code, comme I1.
 
 ---
 
+## I16 — Une proposition n'est pas une décision
+
+**Énoncé.** Importer une proposition ne change le statut d'**aucune** capture.
+Les captures d'origine ne bougent qu'au moment où l'utilisateur tranche :
+`TRAITEE` à l'acceptation, retour à `BRUTE` au rejet. Et le lien capture → boucle,
+qui existe en deux exemplaires (table de liaison et colonne `boucleLiee`), n'est
+écrit qu'en un seul endroit.
+
+**Pourquoi.** C'est I6 poussé jusqu'à sa conséquence sur la boîte de réception. Si
+un import faisait passer les captures en `TRAITEE`, il suffirait de déposer un
+fichier pour vider la boîte : la supervision deviendrait contournable par le bas,
+non plus sur le registre (I6 s'en charge) mais sur la matière première. Et au
+rejet, remettre la note en `BRUTE` plutôt que de la laisser `EXPORTEE` traduit une
+règle simple : **une analyse ratée ne consomme pas le matériau.**
+
+**Où.**
+- `BoucleRepository.importerAjouter` / `importerEcraser` / `importerFusionner`
+  appellent `enregistrerLiensDeclares()`, qui écrit **uniquement** la table de
+  liaison. Aucun de ces chemins ne touche à `captures.statut`.
+- `SupervisionCaptures.kt` → `transitionsCapturesApresSupervision()`, fonction
+  **pure**, décide des transitions ; `accepter()` et `rejeter()` l'appliquent.
+- `TRAITEE` est **absorbant** : un rejet ne défait pas un aboutissement obtenu
+  ailleurs. Ce n'est pas un arbitrage inventé — `Capture.versBrute()` (I14) refuse
+  déjà le retour depuis `TRAITEE`. Propriété obtenue : le statut final ne dépend
+  pas de l'ordre des décisions.
+- `BoucleDao.lierCaptureEtBoucle()` est annotée `@Transaction` et écrit la capture
+  **et** le lien ensemble. Le commanditaire a choisi de conserver `boucleLiee` en
+  parallèle de la table (AND-09) : les deux représentations du même fait ne peuvent
+  donc diverger que si quelqu'un contourne cette méthode.
+- La trace d'acceptation d'AND-04 est **complétée**, pas remplacée : le libellé
+  reste identique mot pour mot quand aucune origine n'est déclarée, et devient
+  « Proposition IA acceptée (origine : C-…, C-…) » sinon.
+
+**Testé par.** `SupervisionCapturesTest` (9 tests) : acceptation faisant aboutir,
+rejet rendant la matière disponible, absence d'écriture inutile, **absorption de
+`TRAITEE` dans les deux ordres de décision**, libellé de trace inchangé sans
+origine et enrichi avec. `OriginesImportTest` (5 tests) : fichier sans `origines`
+valide (non-régression), identifiant inconnu non bloquant, aller-retour
+export/import préservant les liens.
+
+**Trou de couverture assumé.** Que les trois imports n'écrivent effectivement
+aucun statut de capture n'est pas vérifié par un test (le `Repository` dépend de
+Room) : c'est garanti par lecture du code, comme I4 et I12.
+
+**Ce qui le casserait.** Un import qui marquerait les captures « pour faire le
+ménage dans la boîte », un rejet qui laisserait les captures en `EXPORTEE` (la
+matière deviendrait invisible aux prochains lots), ou une écriture de `boucleLiee`
+ailleurs que dans `lierCaptureEtBoucle` — les deux représentations du lien
+divergeraient alors en silence.
+
+---
+
 ## Comment savoir si un invariant est cassé
 
-**1. Lancer les tests.** `./gradlew test` — 127 tests. Correspondance
+**1. Lancer les tests.** `./gradlew test` — 141 tests. Correspondance
 invariant → tests qui tomberaient :
 
 | Invariant | Tests qui tomberaient |
@@ -646,6 +698,7 @@ invariant → tests qui tomberaient :
 | I13 | `FusionSyncTest` (19, dont idempotence et symétrie), `JournalSyncTest` (4) |
 | I14 | `CaptureTest` (14, dont l'inspection du DAO par réflexion) |
 | I15 | `CaptureTest` (pré-remplissage), `PreparationCaptureTest` (5), `LotAnalyseTest` (5) |
+| I16 | `SupervisionCapturesTest` (9), `OriginesImportTest` (5) |
 
 **2. Lire le résultat de la CI.** Le step « Vérifier l'absence de réseau
 (manifest mergé) » échoue en cas de régression sur I5 ; il bloque la publication

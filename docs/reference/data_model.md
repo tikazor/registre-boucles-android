@@ -1,19 +1,19 @@
 ---
-title: Modèle de données interne (Room v7)
+title: Modèle de données interne (Room v8)
 type: reference
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,EvenementSync,Capture,Statut,StatutCapture,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,IdentifiantCapture,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/7.json
+source: app/src/main/java/com/pontat/registreboucles/data/{Boucle,Mouvement,Journal,Suppression,EvenementSync,Capture,CaptureBoucle,Statut,StatutCapture,Milieu,SourceBoucle,JournalType,CodeAppareil,Identifiants,IdentifiantCapture,AppDatabase,BoucleDao}.kt, app/schemas/com.pontat.registreboucles.data.AppDatabase/8.json
 ---
 
-# Modèle de données interne (Room v7)
+# Modèle de données interne (Room v8)
 
 Ce document décrit le modèle **interne** (tables SQLite / entités Room).
 Pour la représentation **JSON** échangée à l'import/export, voir
 [`../schema.md`](../schema.md) — les deux ne sont pas identiques (voir
 « Écarts connus » en fin de document) et ne doivent pas être confondus.
 
-Base : `registre-boucles.db`, version de schéma **7**, 6 tables.
+Base : `registre-boucles.db`, version de schéma **8**, 7 tables.
 
 ---
 
@@ -199,6 +199,43 @@ repository ne propose que `ignorerCapture` / `reactiverCapture` /
 `lierCaptureABoucle`. Une capture s'écarte, elle ne s'efface pas — c'est vérifié
 par réflexion dans `CaptureTest`.
 
+## 3 quinquies. Table `capture_boucle` — entité `CaptureBoucle`
+
+Liaison plusieurs-à-plusieurs entre une note brute et l'engagement qu'elle a
+produit. C'est la trace mémorielle d'AND-09 : remonter d'une boucle active à la
+note qui l'a fait naître, et inversement.
+
+| Colonne | Type SQL | Nullable | Signification |
+|---|---|---|---|
+| `captureId` | TEXT | non (**PK** composite) | Identifiant de la capture. |
+| `boucleId` | TEXT | non (**PK** composite) | Identifiant de la boucle produite. |
+| `lieeLe` | INTEGER | non | Date d'établissement du lien, epoch millis. |
+| `origine` | TEXT | non | `manuelle` (création depuis la boîte de réception) ou `proposition` (champ `origines` d'un fichier importé). |
+
+Index : `index_capture_boucle_captureId`, `index_capture_boucle_boucleId`.
+**Aucune clé étrangère** — même raison que pour `Capture.boucleLiee` et les
+tombstones : le lien doit survivre à la suppression de la boucle, et une capture
+ne disparaît jamais. Aucune suppression n'est exposée : un lien reste même quand
+la proposition qu'il portait a été rejetée.
+
+**Pourquoi plusieurs-à-plusieurs.** Une IA qui analyse un lot peut fondre trois
+notes en une seule proposition (« ces trois messages parlent du même
+engagement »), et une note dense peut donner naissance à plusieurs propositions
+distinctes. Une colonne unique ne représenterait ni l'un ni l'autre.
+
+### Coexistence avec `Capture.boucleLiee`
+
+Les deux existent, par décision du commanditaire (AND-09), et disent la même
+chose sous deux formes : `boucleLiee` porte **la** boucle du cas simple (création
+manuelle), la table porte **toutes** les liaisons. La migration 7 → 8 a repris les
+`boucleLiee` existants dans la table, qui est donc complète.
+
+Le risque de cette redondance — deux vérités pour une donnée, la panne d'AND-02 —
+est contenu par une règle : **un seul point d'écriture**,
+`BoucleDao.lierCaptureEtBoucle()`, annoté `@Transaction`, qui écrit les deux
+ensemble ou aucune. Les affichages lisent la **table** (elle seule couvre le cas
+multiple). Toute écriture de `boucleLiee` ailleurs casse l'invariant I16.
+
 ---
 
 ## 4. Mouvement vs Journal — la distinction centrale
@@ -324,8 +361,9 @@ n'efface jamais les données).
 | 4 → 5 | `ALTER TABLE boucles ADD COLUMN modifieeLe INTEGER` + `ALTER TABLE boucles ADD COLUMN modifieePar TEXT` + `CREATE TABLE IF NOT EXISTS suppressions (…)` | AND-07 |
 | 5 → 6 | `CREATE TABLE IF NOT EXISTS evenements_sync (…)` — aucune table existante touchée | AND-08 |
 | 6 → 7 | `CREATE TABLE IF NOT EXISTS captures (…)` + `index_captures_empreinte` + `index_captures_statut` | AND-06 |
+| 7 → 8 | `CREATE TABLE IF NOT EXISTS capture_boucle (…)` + 2 index + reprise des `boucleLiee` existants dans la table | AND-09 |
 
-Le schéma est exporté et versionné dans `app/schemas/` (v3 à v7 présents)
+Le schéma est exporté et versionné dans `app/schemas/` (v3 à v8 présents)
 depuis AND-02 (`exportSchema = true`, `room.schemaLocation`). Il n'existe
 **aucun test de migration** : cela exigerait un `androidTest` sur émulateur —
 dette assumée, cf. [`../explanation/architecture.md`](../explanation/architecture.md).
@@ -349,6 +387,8 @@ dette assumée, cf. [`../explanation/architecture.md`](../explanation/architectu
 | `insererCapture` / `mettreAJourCapture` | Les **seules** écritures sur `captures`. Aucune méthode de suppression n'existe (invariant I14). |
 | `captureParEmpreinte(empreinte)` | Contrôle de doublon avant insertion (index sur `empreinte`). |
 | `observerNombreCapturesBrutes()` | `WHERE statut = 'brute'` — compteur du badge de la boîte de réception. |
+| `lierCaptureEtBoucle(capture, lien)` | `@Transaction` : écrit `boucleLiee` **et** la ligne de liaison ensemble. Unique point d'écriture d'un lien (invariant I16). |
+| `capturesDeBoucle(boucleId)` | Jointure `captures` × `capture_boucle` — section « Origine » d'une boucle. |
 
 ---
 

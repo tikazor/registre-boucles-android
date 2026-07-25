@@ -12,6 +12,35 @@ commits **par lot de travail**, pas par commit.
 ## [Non publié]
 
 ### Added
+- **Bouclage capture → proposition → boucle** (lot AND-09) : le cycle se referme,
+  et la traçabilité va de la note griffonnée un mardi soir jusqu'à la boucle
+  active.
+  - **Champ `origines`** sur les propositions importées : les identifiants des
+    captures dont la proposition est née. Optionnel — tous les fichiers antérieurs
+    restent valides — et tolérant : un identifiant inconnu de l'appareil n'empêche
+    pas l'import, il est simplement signalé dans le rapport (un lot a pu être
+    analysé après une réinstallation).
+  - **Table de liaison `capture_boucle`** (plusieurs-à-plusieurs) : une IA peut
+    fondre trois notes en une proposition, et une note dense peut en produire
+    plusieurs. Migration Room **7 → 8**, qui reprend au passage les liens déjà
+    exprimés par `boucleLiee`.
+  - **Le marquage se fait au bon moment** (invariant I16) : l'import n'altère
+    **aucune** capture — une proposition n'est pas une décision. L'acceptation les
+    passe `traitee` avec la boucle produite ; le rejet les ramène `brute`, parce
+    qu'une analyse ratée ne consomme pas le matériau.
+  - **`traitee` est absorbant** : si une note a nourri deux propositions dont
+    l'une est acceptée et l'autre rejetée, elle reste `traitee`. Le statut final ne
+    dépend donc pas de l'ordre des décisions.
+  - **Traçabilité visible dans les deux sens** : section « Origine » sur une
+    boucle, avec accès au **texte intégral** des notes sources ; boucles produites
+    affichées sous chaque capture. Une origine déclarée mais absente est montrée,
+    pas masquée.
+  - La trace d'acceptation d'AND-04 est **complétée** : « Proposition IA acceptée
+    (origine : C-…, C-…) ». Libellé inchangé mot pour mot quand aucune origine
+    n'est déclarée.
+  - `docs/schema.md` gagne une section « Cycle complet » utilisable telle quelle
+    comme contexte de prompt pour l'IA qui produira les propositions.
+  - 14 tests supplémentaires (141 au total).
 - **Couche de capture multi-sources** (lot AND-06) : une porte d'entrée pour les
   notes prises ailleurs, en deux taps et sans quitter l'application d'origine.
   - **Capture depuis n'importe quelle app** : partage (`ACTION_SEND`) et sélection

@@ -3,13 +3,24 @@ title: Superviser les propositions d'une IA
 type: how-to
 status: current
 updated: 2026-07-25
-source: app/src/main/java/com/pontat/registreboucles/ui/screens/SupervisionScreen.kt, ui/BoucleViewModel.kt, data/{BoucleRepository,Cloture,Coercition}.kt, samples/ia-propositions-exemple.json
+source: app/src/main/java/com/pontat/registreboucles/ui/screens/SupervisionScreen.kt, ui/BoucleViewModel.kt, data/{BoucleRepository,Cloture,Coercition,SupervisionCaptures,CaptureBoucle}.kt, samples/ia-propositions-exemple.json
 ---
 
 # Superviser les propositions d'une IA
 
 L'IA est **hors de l'application** : elle ne s'y connecte pas. Le cycle complet
 est : *tu demandes → elle produit un JSON → tu l'importes → tu arbitres*.
+
+Depuis AND-09, ce cycle se referme sur les notes capturées : une proposition peut
+déclarer **de quelles captures elle est née**, et la boucle finale garde le lien
+vers la note d'origine.
+
+```
+note partagée ──► capture BRUTE ──► lot d'analyse ──► IA (dehors) ──► propositions
+                                                                          │
+                     boucle + capture TRAITEE  ◄── tu acceptes ───────────┤
+                     capture de nouveau BRUTE  ◄── tu rejettes ──────────┘
+```
 
 ---
 
@@ -29,7 +40,13 @@ Les deux règles qui comptent pour une proposition :
 - `id` préfixé **`IA-###`** évite toute collision avec les `B-###` créés dans
   l'app ;
 - pour **enrichir** une boucle existante, réutiliser son **id exact** (`B-###`)
-  et importer en mode Fusionner.
+  et importer en mode Fusionner ;
+- si la proposition vient de notes capturées, ajouter **`origines`** avec les `id`
+  des captures repris tels quels depuis le lot d'analyse :
+  `"origines": ["C-20260725-142233-9f2b"]`. Plusieurs identifiants sont attendus
+  quand plusieurs notes parlent du même engagement. Le champ est optionnel, et un
+  identifiant inconnu de l'appareil ne bloque rien (il est signalé, la boucle entre
+  quand même).
 
 > Si l'IA se trompe et déclare `statut: "ouverte"`, ce n'est pas grave :
 > l'application **force** toute boucle IA nouvelle en `proposee` et journalise
@@ -55,6 +72,11 @@ ne pas le voir.
 > comptées dans aucune tuile de statistiques. Elles n'existent que dans l'écran
 > Supervision jusqu'à ton arbitrage. Le compteur « Toutes » ne bouge donc pas
 > à cause d'elles.
+
+> **L'import ne touche à aucune capture.** Les liens déclarés par `origines` sont
+> enregistrés, mais le statut des notes ne bouge pas : une proposition n'est pas
+> une décision (invariant I16). La boîte de réception reste donc telle quelle
+> jusqu'à ton arbitrage.
 
 ## 3. Arbitrer
 
@@ -90,6 +112,19 @@ attente ; enregistrer vaut « j'amende **et** j'accepte ». Il n'y a pas
 aujourd'hui de « modifier sans accepter ».
 → *à confirmer* : faut-il dissocier les deux ? Non tranché.
 
+### Ce que l'arbitrage fait aux notes d'origine
+
+| Ta décision | La boucle | Les captures liées |
+|---|---|---|
+| **Accepter** | passe `ouverte`, trace « Proposition IA acceptée (origine : C-…) » | passent **`traitee`** et portent la boucle produite |
+| **Amender puis accepter** | idem, trace « … après amendement » | idem |
+| **Rejeter** | passe `rejetee` avec ton motif au journal | repassent **`brute`** : la proposition était mauvaise, la note reste bonne et redevient analysable |
+
+**Une note qui a nourri deux propositions.** Si l'une est acceptée et l'autre
+rejetée, la capture reste `traitee` — `traitee` est absorbant. Le résultat ne
+dépend donc pas de l'ordre dans lequel tu arbitres, et un rejet ne défait jamais
+un aboutissement.
+
 ## 4. Vérifier après arbitrage
 
 - Le **badge** décroît (et disparaît à zéro).
@@ -98,6 +133,16 @@ aujourd'hui de « modifier sans accepter ».
 - Une proposition **rejetée** n'est plus dans Supervision ; elle est visible via
   le filtre **Fermées** (`rejetee` est un état terminal), et son motif est
   consultable par **« Journal des clôtures »** sur sa carte.
+
+### Remonter à la note d'origine
+
+Déplie la boucle : une section **« Origine »** liste les notes qui l'ont fait
+naître (date, appareil, application source). Un appui ouvre le **texte intégral**,
+non modifiable. Dans l'autre sens, la boîte de réception indique sous chaque
+capture la ou les boucles qu'elle a produites.
+
+Une origine déclarée mais absente de cet appareil s'affiche telle quelle, en
+signalant l'absence : une trace incomplète reste une trace.
 
 ## 5. Ce qui n'a pas été vérifié sur appareil réel
 

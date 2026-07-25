@@ -28,8 +28,8 @@ bug à signaler, pas une nuance à interpréter.
 | Document | Type | Contenu |
 |---|---|---|
 | [`schema.md`](schema.md) | reference | **Contrat JSON** d'échange : champs, statuts, provenance, dates, modes d'import, convention d'identifiants, protocole de synchronisation, format du lot d'analyse. Auto-suffisant — donnable tel quel à une IA. |
-| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v7** : 6 entités champ par champ, 4 enums, code appareil et préfixe des identifiants, clés étrangères, migrations, requêtes DAO structurantes. |
-| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 15 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
+| [`reference/data_model.md`](reference/data_model.md) | reference | **Modèle interne Room v8** : 7 entités champ par champ, 4 enums, code appareil et préfixe des identifiants, clés étrangères, migrations, requêtes DAO structurantes. |
+| [`explanation/invariants.md`](explanation/invariants.md) | explanation | **Les 16 invariants structurels** : énoncé, raison d'être, point d'application, couverture de test réelle, ce qui les casserait. **À lire avant toute modification.** |
 
 ---
 
@@ -40,14 +40,14 @@ bug à signaler, pas une nuance à interpréter.
 | Document | Contenu |
 |---|---|
 | [`schema.md`](schema.md) | Contrat JSON import/export (format canonique `version: 3`, tolérance des formats v1 et v2) et **protocole de synchronisation** entre appareils. |
-| [`reference/data_model.md`](reference/data_model.md) | Tables, colonnes, enums, migrations 1→2→3→4→5→6→7, écarts assumés entre modèle interne et contrat JSON. |
+| [`reference/data_model.md`](reference/data_model.md) | Tables, colonnes, enums, migrations 1→2 … 7→8, écarts assumés entre modèle interne et contrat JSON. |
 | [`00_INDEX.md`](00_INDEX.md) | Ce document. |
 
 ### Explanation
 
 | Document | Contenu |
 |---|---|
-| [`explanation/invariants.md`](explanation/invariants.md) | Les 15 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
+| [`explanation/invariants.md`](explanation/invariants.md) | Les 16 règles que l'app garantit par construction, et comment savoir si l'une est cassée. |
 | [`explanation/architecture.md`](explanation/architecture.md) | Couches UI → ViewModel → Repository → Room, widget Glance, pourquoi la logique métier est en fonctions pures, rôle de chaque écran, **dette technique assumée**. |
 | [`decisions.md`](decisions.md) | Journal des décisions d'architecture (ADR). Voir ci-dessous. |
 

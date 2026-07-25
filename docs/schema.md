@@ -56,6 +56,7 @@ de produire un JSON valide sans autre explication.
 | `source`         | énum (voir §5)  | non         | Provenance. Absent à l'import = `import`. |
 | `modifieeLe`     | date ISO-8601   | non (v3+)   | Dernière modification. Absent = jamais modifiée depuis `creee`. |
 | `modifieePar`    | chaîne          | non (v3+)   | Code de l'appareil auteur de la dernière modification. |
+| `origines`       | tableau         | non         | Identifiants des **captures** ayant produit cette proposition (AND-09). Voir §11. |
 | `mouvements`     | tableau         | non         | Voir §7. |
 
 ---
@@ -370,7 +371,104 @@ seulement si la boucle a été créée **depuis la boîte de réception**, à la
 
 ---
 
-## 11. Exemple complet et minimal valide
+## 11. Cycle complet : capture -> analyse -> proposition -> boucle
+
+Cette section est **auto-suffisante** : donnée telle quelle à une IA chargée
+d'analyser un lot, elle décrit tout ce qu'elle doit savoir pour produire un
+fichier exploitable.
+
+### 11.1 Les quatre temps
+
+```
+1. CAPTURE          note partagée depuis une autre app  ──►  capture BRUTE
+2. LOT D'ANALYSE    export JSON des captures brutes     ──►  capture EXPORTEE
+3. ANALYSE          hors de l'app, par une IA           ──►  fichier de propositions
+4. SUPERVISION      import puis décision humaine        ──►  boucle + capture TRAITEE
+                                                             ou capture BRUTE (rejet)
+```
+
+L'application ne fait **aucune analyse** : elle stocke, elle exporte, elle
+importe, elle enregistre ta décision. Tout le travail d'interprétation se fait à
+l'étape 3, dehors.
+
+### 11.2 Transitions de statut d'une capture
+
+| Moment | Statut de la capture | Pourquoi |
+|---|---|---|
+| Capturée depuis une autre app | `brute` | Matière première, rien de décidé. |
+| Partie dans un lot d'analyse | `exportee` | Réversible : si le lot n'est pas exploité, retour possible en `brute`. |
+| **Proposition importée** | **inchangé** | **Une proposition n'est pas une décision.** Le lien est enregistré, le statut ne bouge pas. |
+| Proposition **acceptée** | `traitee` + `boucleLiee` | La note a abouti à un engagement. |
+| Proposition **rejetée** | `brute` | La proposition était mauvaise, la note reste bonne : elle redevient analysable. |
+| Écartée à la main | `ignoree` | Réversible. |
+
+**Règle du cas multiple.** Une note peut nourrir plusieurs propositions. Si l'une
+est acceptée et l'autre rejetée, la capture reste `traitee` : **`traitee` est
+absorbant**, et le résultat ne dépend donc pas de l'ordre dans lequel les
+décisions sont prises. Un rejet ne ramène en `brute` que les captures qui n'ont
+encore rien produit.
+
+### 11.3 Ce que l'analyse externe reçoit
+
+Un fichier `lot-analyse-<aaaaMMjj-HHmm>.json` (§10 bis) : des notes brutes, leur
+date, leur appareil et leur application d'origine. Rien d'autre — ni statut, ni
+boucle, ni interprétation antérieure.
+
+### 11.4 Ce que l'analyse externe doit produire
+
+Un fichier conforme au contrat de ce document (§1 à §7), avec :
+
+- `source: "ia"` sur chaque boucle produite — l'application forcera de toute façon
+  le statut à `proposee` à l'import (supervision obligatoire) ;
+- **`origines`** : les identifiants des captures dont la proposition est issue,
+  repris **tels quels** depuis le champ `id` du lot. Plusieurs identifiants sont
+  attendus quand plusieurs notes parlent du même engagement ;
+- une seule proposition par engagement réel : mieux vaut fondre trois notes en une
+  boucle que produire trois boucles jumelles.
+
+```json
+{
+  "version": 3,
+  "boucles": [
+    {
+      "id": "IA-001",
+      "type": "ACTION",
+      "titre": "Rappeler Marie au sujet de la convention",
+      "origine": "analyse du lot du 25/07/2026",
+      "creee": "2026-07-25",
+      "echeance": "2026-08-05",
+      "tiers": "Marie",
+      "preuveAttendue": "Compte rendu de l'échange",
+      "impact": "Convention bloquée tant que le point n'est pas tranché",
+      "statut": "proposee",
+      "source": "ia",
+      "origines": ["C-20260725-142233-9f2b", "C-20260726-081500-3a1c"]
+    }
+  ]
+}
+```
+
+### 11.5 Tolérances
+
+- `origines` est **optionnel** : un fichier qui ne le déclare pas reste valide, et
+  tous les fichiers antérieurs à AND-09 le sont donc aussi.
+- Un identifiant de capture **inconnu de l'appareil** ne bloque rien : la boucle
+  est importée normalement, le lien est conservé tel quel, et l'absence est
+  signalée dans le rapport d'import. Un lot peut légitimement avoir été analysé
+  après une réinstallation.
+- Les identifiants ne sont **jamais inventés ni corrigés** par l'application.
+
+### 11.6 Traçabilité obtenue
+
+Une fois la proposition acceptée, on remonte dans les deux sens : depuis la boucle,
+la section « Origine » donne les notes sources et leur **texte intégral** ; depuis
+la capture, la boîte de réception indique la ou les boucles produites. C'est la
+raison d'être du lot : retrouver, des mois plus tard, la note qui a fait naître un
+engagement.
+
+---
+
+## 12. Exemple complet et minimal valide
 
 ```json
 {
