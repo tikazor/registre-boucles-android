@@ -25,20 +25,45 @@ document à jour dans le même lot.
 
 ## I1 — Aucun état terminal sans entrée Journal
 
-**Énoncé.** Une boucle ne peut pas atteindre un état terminal sans qu'une
-entrée `Journal` (type + texte non vide) soit créée dans la même opération.
+**Énoncé.** Toute écriture d'un statut terminal garantit une entrée `Journal`
+(type + texte non vide). La garantie tient sur **les trois canaux d'écriture**,
+par deux mécanismes :
+- **Canal commande** (l'utilisateur agit depuis l'UI) : garantie par
+  `executerTransitionTerminale()`, qui crée le journal **avant** d'écrire le
+  statut et refuse un texte vide.
+- **Canaux réplication et import** (application d'un état venu d'ailleurs) :
+  garantie par `completerJournaux()`, qui **backfille** l'entrée manquante —
+  toute boucle terminale sans journal reçoit une entrée par défaut.
+
+Aucun statut terminal ne peut exister sans journal, **quel que soit le chemin**.
 
 **Pourquoi.** C'est la doctrine de l'app : une boucle ne se ferme pas parce
 qu'on s'en désintéresse, elle se ferme **contre une preuve**. Sans cette règle,
 le registre deviendrait une liste de tâches ordinaire où l'on coche sans rendre
 compte.
 
-**Où.** `Cloture.kt` → `executerTransitionTerminale()` est le **chemin unique**
-d'écriture d'un statut terminal :
-`require(statutCible.estTerminal())`, `require(texte.isNotBlank())`, puis
-`insererJournal()` **avant** `mettreAJourBoucle()`. `executerCloture()` n'est
-qu'un alias vers cette fonction (`statutCible = FERMEE`) — aucune logique
-dupliquée. `rejeter()` dans `BoucleRepository` passe par la même fonction.
+**Les trois canaux d'écriture.** Une écriture de statut n'a pas toujours la même
+provenance, et la garantie ne passe pas par le même mécanisme selon le canal :
+- **Commande** — l'utilisateur agit (UI). Gardes de transition strictes (I2),
+  `executerTransitionTerminale` est le chemin.
+- **Réplication** — synchronisation entre **mes** appareils via
+  `etat-<CODE>.json` : on applique un état **déjà validé à l'origine**. Les
+  gardes I2 ne sont pas rejouées (elles romperaient la convergence, cf. I2) ; la
+  garantie de journal est portée par `completerJournaux()`.
+- **Import** — fichier externe (produit par une IA ou édité à la main) : ce
+  n'est **pas** de la réplication de confiance ; les écarts y sont signalés
+  (cf. AND-10). La garantie de journal reste portée par `completerJournaux()`.
+
+**Où.**
+- Canal commande : `Cloture.kt` → `executerTransitionTerminale()` :
+  `require(statutCible.estTerminal())`, `require(texte.isNotBlank())`, puis
+  `insererJournal()` **avant** `mettreAJourBoucle()`. `executerCloture()` est un
+  alias (`statutCible = FERMEE`) ; `rejeter()` dans `BoucleRepository` passe par
+  cette fonction. C'est le seul chemin qui applique aussi les gardes I2.
+- Canaux réplication et import : `BoucleRepository.completerJournaux()` est
+  appelé sur l'application du plan de sync (`appliquerPlanSync`), sur l'arbitrage
+  (`arbitrerPrendreDistant`) et sur les trois imports. Une boucle terminale sans
+  journal y reçoit « Clôture importée (sans preuve d'origine) » (texte non vide).
 
 **Testé par.** `ClotureTest` (3 tests) :
 `cloture_cree_toujours_une_entree_journal_et_ferme`,
@@ -47,36 +72,56 @@ dupliquée. `rejeter()` dans `BoucleRepository` passe par la même fonction.
 `TransitionStatutTest` : `rejeter_sans_motif_est_impossible`,
 `rejeter_une_proposee_avec_motif_ecrit_journal_et_passe_a_rejetee`.
 
-**Ce qui le casserait.** Tout `copy(statut = …)` vers un statut terminal écrit
-ailleurs que dans `executerTransitionTerminale` — typiquement un
+**Ce qui le casserait.** Un chemin d'écriture terminale qui n'appellerait **ni**
+`executerTransitionTerminale` **ni** `completerJournaux` — typiquement un
 `dao.mettreAJour(boucle.copy(statut = "fermee"))` ajouté dans un écran ou le
 widget. Aucun test ne détecterait ce contournement : c'est une règle à tenir en
 revue de code (cf. `AGENTS.md`).
 
 ---
 
-## I2 — Garde-fous de transition
+## I2 — Garde-fous de transition (canal commande)
 
-**Énoncé.** `FERMEE` n'est atteignable que depuis une boucle **active**.
-`REJETEE` n'est atteignable que depuis une boucle **`PROPOSEE`**. Une
-proposition ne peut donc pas être clôturée : il faut d'abord l'accepter.
+**Énoncé.** Les gardes de transition — `FERMEE` seulement depuis une boucle
+**active**, `REJETEE` seulement depuis une boucle **`PROPOSEE`** — s'appliquent
+au **canal commande** (I1). Une proposition ne peut donc pas être clôturée depuis
+l'UI : il faut d'abord l'accepter.
+Le **canal réplication** (synchronisation entre mes appareils,
+`etat-<CODE>.json`) n'y est **pas** soumis, à dessein : il applique un état
+**déjà validé à l'origine** sur l'appareil pair. Une boucle passée
+`PROPOSEE → OUVERTE → FERMEE` là-bas arrive ici en un seul saut de statut ;
+rejouer les gardes la rejetterait alors qu'elle est parfaitement légitime — on
+romprait la convergence.
+Le **canal import** (fichier externe, produit par une IA ou édité à la main)
+n'est **pas** de la réplication de confiance : les écarts y sont signalés
+(cf. AND-10, non livré).
 
-**Pourquoi.** Sans ces gardes, une proposition d'IA jamais examinée pourrait
-être « clôturée » directement et rejoindre l'histoire du registre comme un
-engagement réellement tenu. La supervision serait contournable par le bas.
+**Pourquoi.** Sans ces gardes sur le canal commande, une proposition d'IA jamais
+examinée pourrait être « clôturée » directement et rejoindre l'histoire du
+registre comme un engagement réellement tenu : la supervision serait contournable
+par le bas. Mais les rejouer sur le canal réplication serait une **régression**,
+pas un durcissement — l'appareil pair a déjà fait passer la boucle par la
+supervision, et lui réappliquer les gardes casserait la convergence légitime.
+La confiance suit la provenance : réplication = confiance, import = méfiance.
 
 **Où.** `Cloture.kt`, dans `executerTransitionTerminale()` : le `when` sur
 `statutCible` vérifie l'état **courant** (`Statut.depuis(boucle.statut)`) avant
-d'écrire. `accepterProposition()` exige symétriquement que l'état courant soit
-`PROPOSEE`.
+d'écrire ; `accepterProposition()` exige symétriquement `PROPOSEE`. Ces contrôles
+ne s'exécutent que sur le **canal commande**. Le canal réplication applique le
+plan de `calculerFusionSync` via `appliquerPlanSync`, qui adopte le statut de
+l'émetteur **sans** rejouer le `when` — la garantie de journal restant portée par
+`completerJournaux()` (I1). Le traitement des écarts d'import relève d'AND-10.
 
 **Testé par.** `TransitionStatutTest` : `une_proposee_ne_peut_pas_etre_cloturee`,
 `on_ne_peut_pas_rejeter_une_boucle_non_proposee`,
 `accepter_une_boucle_non_proposee_est_refuse`.
 
-**Ce qui le casserait.** Assouplir le `when` (par exemple accepter `REJETEE`
-depuis n'importe quel statut « pour pouvoir corriger une erreur »). Si ce besoin
-apparaît, il justifie un lot dédié, pas un `require` retiré.
+**Ce qui le casserait.** Assouplir le `when` du canal commande (par exemple
+accepter `REJETEE` depuis n'importe quel statut « pour corriger une erreur ») ;
+ou, à l'inverse, **ajouter** ces gardes sur le canal réplication « par
+cohérence » : une clôture légitime venue d'un appareil pair serait alors rejetée
+et les deux bases cesseraient de converger. Si un besoin d'assouplissement du
+canal commande apparaît, il justifie un lot dédié, pas un `require` retiré.
 
 ---
 
