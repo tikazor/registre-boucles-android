@@ -275,35 +275,55 @@ existants au lieu d'un set vide (les propositions IA entreraient alors actives).
 
 ---
 
-## I7 — Fusion additive : on n'efface jamais
+## I7 — Fusion additive : on n'efface jamais (et ce que la fusion préserve selon le canal)
 
-**Énoncé.** Le mode « Fusionner » n'efface aucun mouvement ni journal. Pour une
-boucle existante, `id`, `creee`, `statut` et `source` sont **toujours**
-préservés, même quand l'utilisateur choisit « prendre l'entrant ».
+**Énoncé.** Aucune fusion n'efface de mouvement ni de journal, sur **tous les
+canaux** : l'import de propositions (mode « Fusionner ») comme la réplication
+entre appareils font une union dédupliquée sur `(boucleId, date, contenu)` et
+`(boucleId, date, texte)`, jamais une suppression. Pour une boucle existante,
+`id`, `creee` et `source` sont **toujours** préservés, sur les deux canaux. En
+revanche `statut` n'est préservé que sur le **canal import de propositions** :
+sur le canal réplication, le moteur de synchronisation adopte le statut distant
+— un état terminal l'emporte, puis le dernier modifié gagne au-delà de 60 s.
+C'est **I13**, non I7, qui régit le statut en réplication.
 
-**Pourquoi.** Une IA qui enrichit une boucle existante doit pouvoir compléter la
-description, jamais réécrire le cycle de vie ni s'attribuer la provenance. Et
-un mouvement/journal déjà écrit est une trace historique : rien ne justifie
-qu'un fichier importé la supprime.
+**Pourquoi.** Deux canaux, deux intentions. À l'import, une IA qui enrichit une
+boucle existante doit pouvoir compléter la description sans jamais réécrire le
+cycle de vie ni s'attribuer la provenance : le statut local fait foi. En
+réplication, les appareils sont des pairs de confiance qui doivent converger ;
+figer le statut y empêcherait une clôture faite sur un téléphone de se propager
+à l'autre — exactement ce que I13 impose d'éviter. Ce qui ne varie pas d'un
+canal à l'autre : un mouvement ou un journal déjà écrit est une trace
+historique, que rien — ni un fichier importé, ni un fichier d'état pair — ne
+supprime, et `id`/`creee`/`source` d'une boucle existante, jamais réécrits.
 
-**Où.** `Fusion.kt` → `calculerFusion()`, fonction **pure** :
-- mouvements/journaux entrants ajoutés, dédupliqués sur
-  `(boucleId, date, contenu)` et `(boucleId, date, texte)` ; aucune suppression ;
-- id absent ⇒ boucle créée telle quelle (avec son statut d'origine) ;
-- id présent **et** choisi dans `prendreEntrant` ⇒ `existante.copy(...)` sur les
-  seuls champs descriptifs (`type, titre, origine, echeance, tiers,
-  preuveAttendue, blocage, impact, defaut, milieu`) ;
-- `calculerConflits()` produit le diff champ par champ présenté à l'arbitrage.
+**Où.**
+- **Import** — `Fusion.kt` → `calculerFusion()`, fonction **pure** : id absent ⇒
+  boucle créée telle quelle (statut d'origine) ; id présent **et** choisi dans
+  `prendreEntrant` ⇒ `existante.copy(...)` sur les **seuls** champs descriptifs
+  (`type, titre, origine, echeance, tiers, preuveAttendue, blocage, impact,
+  defaut, milieu`) — donc `id`, `creee`, `statut`, `source` restent intacts.
+- **Réplication** — `FusionSync.kt` → `calculerFusionSync()` / `adopter()` :
+  `locale.copy(...)` copie les mêmes champs descriptifs **plus `statut`**
+  (règles 4a terminal / 4b dernier modifié), et laisse `id`, `creee`, `source`
+  intacts (règle 4c, `diffsScalaires` les exclut). Chaque champ écrasé, statut
+  compris, produit un mouvement de traçage (I13).
+- **Les deux** — mouvements et journaux entrants ajoutés puis dédupliqués,
+  jamais supprimés ; `calculerConflits()` (import) et la règle 4b (réplication)
+  produisent le diff champ par champ présenté à l'arbitrage.
 
 **Testé par.** `FusionTest` (7 tests), dont
 `prendre_entrant_remplace_les_scalaires_mais_preserve_statut_source_creee`,
 `mouvements_dedupliques_sur_boucleId_date_contenu`,
-`aucun_journal_perdu_et_dedup`, `garder_existant_ne_touche_pas_la_boucle`.
+`aucun_journal_perdu_et_dedup`, `garder_existant_ne_touche_pas_la_boucle`
+(canal import) ; `FusionSyncTest` (19 tests) pour l'adoption du statut distant
+et la préservation de `id`/`creee`/`source` en réplication.
 
-**Ce qui le casserait.** Ajouter `statut` ou `source` à la liste des champs
-copiés dans `misesAJour`. Élargir la clé de déduplication (par exemple dédupliquer
-sur `(boucleId, date)` seul) écraserait des mouvements de même date au contenu
-différent.
+**Ce qui le casserait.** Ajouter `statut` ou `source` aux champs copiés par
+`calculerFusion` (canal import) ; retirer `statut` de `adopter()`, ou y ajouter
+`id`/`creee`/`source` (canal réplication) ; élargir la clé de déduplication (par
+exemple à `(boucleId, date)` seul), sur l'un ou l'autre canal, écraserait des
+mouvements de même date au contenu différent.
 
 ---
 
@@ -339,12 +359,23 @@ simplifier » dans `statutTypé()`.
 
 ---
 
-## I9 — Tout identifiant porte le préfixe de l'appareil qui l'a créé
+## I9 — Tout identifiant de boucle porte le préfixe de l'appareil qui l'a créée
 
-**Énoncé.** Un identifiant créé localement s'écrit `<CODE>-<numéro>`, où `CODE`
-est le code de **cet** appareil (1 à 4 lettres). Le numéro suivant est calculé
-sur les seuls identifiants portant ce préfixe. L'identité de l'appareil n'est
-**jamais** sauvegardée ni restaurée par le système.
+**Énoncé.** Un identifiant de **boucle** créé localement s'écrit `<CODE>-<numéro>`,
+où `CODE` est le code de **cet** appareil (1 à 4 lettres). Le numéro suivant est
+calculé sur les seuls identifiants portant ce préfixe. L'identité de l'appareil
+n'est **jamais** sauvegardée ni restaurée par le système.
+
+**Deux exceptions, délibérées.** L'énoncé ne vaut que pour les boucles :
+- Les **captures** ne portent pas de préfixe d'appareil : leur id est
+  `C-<aaaaMMjj-HHmmss>-<4 hex>` (`IdentifiantCapture.kt`). Une capture n'est
+  jamais désignée à l'oral et un horodatage + tirage aléatoire évite toute
+  collision **sans coordination** entre appareils — donc sans dépendre du socle
+  multi-appareils. Choix documenté (I14, `genererIdCaptureUnique`).
+- Les **ids historiques non conformes** sont **tolérés à l'import** (`idConforme`
+  ne sert qu'à signaler, jamais à rejeter ni renuméroter, cf. I8) ; ils sont
+  ignorés par le décompte de `genererProchainId`, qui ne compte que le préfixe
+  local.
 
 **Pourquoi.** Le registre est destiné à vivre sur plus d'un appareil. Avec la
 numérotation globale d'avant (max + 1, tous préfixes confondus), deux appareils

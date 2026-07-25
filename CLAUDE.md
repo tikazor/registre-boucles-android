@@ -27,12 +27,15 @@ de mémoire.
   HTTP/SDK ; garde CI bloquante sur le manifest mergé.
 - **I6** — Toute boucle NOUVELLE `source=ia` forcée en `proposee` à l'import,
   quel que soit le statut déclaré (supervision non contournable).
-- **I7** — Fusion additive : jamais d'effacement ; `id/creee/statut/source` d'une
-  boucle existante toujours préservés.
+- **I7** — Fusion additive sur TOUS les canaux : jamais d'effacement,
+  `id/creee/source` d'une boucle existante toujours préservés. `statut` préservé
+  au seul canal import ; en réplication le moteur adopte le statut distant (I13).
 - **I8** — Aucune donnée masquée : un statut inconnu reste visible dans « Toutes »
   avec marqueur ; rejeté à l'import.
-- **I9** — Tout id porte le préfixe de l'appareil créateur ; le code appareil
-  n'est jamais sauvegardé ni restauré (fichier `registre-appareil.xml` exclu).
+- **I9** — Tout id de **boucle** porte le préfixe de l'appareil créateur ; le code
+  appareil n'est jamais sauvegardé ni restauré (`registre-appareil.xml` exclu).
+  Exceptions : captures (`C-<horodatage>-<hex>`, sans coordination, cf. I14) et
+  ids historiques tolérés à l'import.
 - **I10** — Toute suppression écrit une tombstone dans la même transaction ;
   jamais d'effacement muet.
 - **I11** — Un appareil n'écrit QUE son fichier `etat-<CODE>.json` ; il lit les
@@ -70,6 +73,6 @@ DANS LE MÊME LOT.
 | Index de toute la doc | `docs/00_INDEX.md` |
 | Contrat JSON (import/export/sync) | `docs/schema.md` |
 | Invariants (détail + tests) | `docs/explanation/invariants.md` |
-| Modèle de données (Room v8) | `docs/reference/data_model.md` |
+| Modèle de données | `docs/reference/data_model.md` |
 | Architecture | `docs/explanation/architecture.md` |
 | Décisions ouvertes/tranchées (ADR) | `docs/decisions.md` |
