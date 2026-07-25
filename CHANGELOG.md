@@ -172,6 +172,11 @@ commits **par lot de travail**, pas par commit.
   et `AGENTS.md` (contrat pour les futures sessions de travail).
 
 ### Fixed
+- **Consolidation post-audit AUDIT-01** : la portée réelle des invariants
+  I1/I2/I7/I9 selon les trois canaux (commande / réplication / import) est
+  rétablie dans `docs/explanation/invariants.md`, le contrat de session
+  `CLAUDE.md` entre sur `main`, et le README est remis à jour (Room v8,
+  16 invariants).
 - **Badges des statuts `proposee` et `rejetee`** : ils n'avaient ni libellé
   accentué (« Proposee ») ni couleur propre — une boucle **rejetée** portait la
   couleur du badge « Ouverte ». Elles ont désormais leur libellé (« Proposée »,
