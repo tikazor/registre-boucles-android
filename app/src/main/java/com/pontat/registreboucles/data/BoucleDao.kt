@@ -208,4 +208,43 @@ interface BoucleDao {
     /** Compteur du badge de la boîte de réception (masqué si zéro). */
     @Query("SELECT COUNT(*) FROM captures WHERE statut = 'brute'")
     fun observerNombreCapturesBrutes(): Flow<Int>
+
+    // ── Liaison capture <-> boucle (AND-09) ──
+    //
+    // Aucune suppression ici non plus : un lien reste même quand la proposition
+    // qu'il portait a été rejetée. Que cette note ait nourri une proposition
+    // refusée est une information, pas un déchet.
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insererLien(lien: CaptureBoucle)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insererLiens(liens: List<CaptureBoucle>)
+
+    @Query("SELECT * FROM capture_boucle")
+    fun observerLiens(): Flow<List<CaptureBoucle>>
+
+    @Query("SELECT * FROM capture_boucle WHERE boucleId = :boucleId")
+    suspend fun liensDeBoucle(boucleId: String): List<CaptureBoucle>
+
+    @Query(
+        "SELECT c.* FROM captures c INNER JOIN capture_boucle l ON l.captureId = c.id " +
+            "WHERE l.boucleId = :boucleId ORDER BY c.capturee DESC"
+    )
+    suspend fun capturesDeBoucle(boucleId: String): List<Capture>
+
+    /**
+     * UNIQUE point d'écriture d'un lien capture -> boucle, transactionnel.
+     *
+     * Le commanditaire a choisi (AND-09) de conserver `captures.boucleLiee` en
+     * parallèle de la table de liaison. Les deux représentations du même fait ne
+     * peuvent donc diverger que si quelqu'un en écrit une sans l'autre : elles
+     * sont écrites ICI, ensemble, ou pas du tout. Ne jamais contourner cette
+     * méthode (cf. invariant I16).
+     */
+    @Transaction
+    suspend fun lierCaptureEtBoucle(capture: Capture, lien: CaptureBoucle) {
+        mettreAJourCapture(capture)
+        insererLien(lien)
+    }
 }

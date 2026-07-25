@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Boucle::class, Mouvement::class, Journal::class, Suppression::class,
-        EvenementSync::class, Capture::class
+        EvenementSync::class, Capture::class, CaptureBoucle::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,6 +105,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v7 -> v8 : table de liaison `capture_boucle` (une capture peut nourrir
+        // plusieurs propositions, une proposition peut naître de plusieurs notes).
+        // Aucune clé étrangère : le lien doit survivre à la suppression de la boucle,
+        // et une capture ne disparaît jamais (invariant I14).
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `capture_boucle` (" +
+                        "`captureId` TEXT NOT NULL, `boucleId` TEXT NOT NULL, " +
+                        "`lieeLe` INTEGER NOT NULL, `origine` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`captureId`, `boucleId`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_capture_boucle_captureId` " +
+                        "ON `capture_boucle` (`captureId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_capture_boucle_boucleId` " +
+                        "ON `capture_boucle` (`boucleId`)"
+                )
+                // Reprise de l'existant : les liens déjà exprimés par
+                // `captures.boucleLiee` (créations manuelles d'AND-06) entrent dans
+                // la table, pour que la nouvelle vue soit complète dès la migration.
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `capture_boucle` " +
+                        "(`captureId`, `boucleId`, `lieeLe`, `origine`) " +
+                        "SELECT `id`, `boucleLiee`, `capturee`, 'manuelle' FROM `captures` " +
+                        "WHERE `boucleLiee` IS NOT NULL"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -113,7 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "registre-boucles.db"
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-                    MIGRATION_5_6, MIGRATION_6_7
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8
                 )
                     .build().also { INSTANCE = it }
             }
