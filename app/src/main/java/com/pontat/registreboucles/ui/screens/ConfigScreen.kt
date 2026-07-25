@@ -169,6 +169,29 @@ fun ConfigScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (codeAppareil == null) {
+                    // Repli pour les captures faites AVANT le premier lancement de
+                    // l'app (on peut partager du texte sans l'avoir jamais ouverte) :
+                    // un nom libre, sans contrainte de format, par défaut « LOCAL ».
+                    var nomLibre by remember { mutableStateOf(vm.nomAppareilCapture()) }
+                    OutlinedTextField(
+                        value = nomLibre,
+                        onValueChange = { nomLibre = it },
+                        singleLine = true,
+                        label = { Text("Nom de cet appareil (captures)") },
+                        supportingText = {
+                            Text("Utilisé tant qu'aucun code appareil n'est défini. Défaut : LOCAL.")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        enabled = nomLibre.isNotBlank(),
+                        onClick = {
+                            vm.definirNomAppareil(nomLibre)
+                            Toast.makeText(context, "Nom d'appareil : $nomLibre", Toast.LENGTH_SHORT).show()
+                        }
+                    ) { Text("Enregistrer le nom") }
+                }
             }
             HorizontalDivider()
 

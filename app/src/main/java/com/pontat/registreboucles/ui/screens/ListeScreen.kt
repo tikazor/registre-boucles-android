@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -135,7 +136,8 @@ fun ListeScreen(
     onOuvrirDebug: () -> Unit,
     onOuvrirConfig: () -> Unit,
     onOuvrirJournal: (String) -> Unit,
-    onOuvrirSupervision: () -> Unit
+    onOuvrirSupervision: () -> Unit,
+    onOuvrirReception: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -152,6 +154,8 @@ fun ListeScreen(
     val fusionEnCours by vm.fusionEnCours.collectAsStateWithLifecycle()
     val propositions by vm.propositions.collectAsStateWithLifecycle()
     val cibleWidget by vm.cibleWidget.collectAsStateWithLifecycle()
+    val capturesBrutes by vm.capturesBrutes.collectAsStateWithLifecycle()
+    val creationDepuisCapture by vm.creationDepuisCapture.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val filtreMilieu by vm.filtreMilieu.collectAsStateWithLifecycle()
@@ -259,6 +263,17 @@ fun ListeScreen(
                     }
                 },
                 actions = {
+                    // Badge Boîte de réception : captures BRUTE en attente (masqué si zéro).
+                    if (capturesBrutes > 0) {
+                        IconButton(onClick = onOuvrirReception) {
+                            BadgedBox(badge = { Badge { Text(capturesBrutes.toString()) } }) {
+                                Icon(
+                                    Icons.Filled.MoveToInbox,
+                                    contentDescription = "Boîte de réception"
+                                )
+                            }
+                        }
+                    }
                     // Badge Supervision : nombre de propositions en attente (masqué si zéro).
                     if (propositions.isNotEmpty()) {
                         IconButton(onClick = onOuvrirSupervision) {
@@ -282,6 +297,10 @@ fun ListeScreen(
                                 val jour = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                                 exportLauncher.launch("boucles-export-$jour.json")
                             }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Boîte de réception") },
+                            onClick = { menuOuvert = false; onOuvrirReception() }
                         )
                         DropdownMenuItem(
                             text = { Text("Configuration") },
@@ -443,6 +462,12 @@ fun ListeScreen(
         )
     }
 
+    // Une capture a demandé « créer une boucle » : le formulaire EXISTANT s'ouvre,
+    // pré-rempli. C'est le seul chemin capture -> registre, et il passe par toi.
+    LaunchedEffect(creationDepuisCapture) {
+        if (creationDepuisCapture != null) creationOuverte = true
+    }
+
     // Création en bottom sheet (déclenchée par le FAB).
     // Fermeture : clic hors sheet (scrim), swipe vers le bas, croix, ou validation.
     if (creationOuverte) {
@@ -452,7 +477,14 @@ fun ListeScreen(
         ) {
             CreationForm(
                 vm = vm,
+                titreInitial = creationDepuisCapture?.titre,
+                origineInitiale = creationDepuisCapture?.origine,
+                onCreee = { id ->
+                    // La capture passe en TRAITEE et porte la boucle produite.
+                    creationDepuisCapture?.let { vm.lierCaptureCreee(it.captureId, id) }
+                },
                 onFerme = {
+                    vm.annulerCreationDepuisCapture()
                     scope.launch { sheetState.hide() }.invokeOnCompletion {
                         if (!sheetState.isVisible) creationOuverte = false
                     }

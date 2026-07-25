@@ -56,15 +56,24 @@ fun CreationForm(
     onFerme: () -> Unit,
     boucleAModifier: Boucle? = null,
     afficherEnregistrerEnTete: Boolean = false,
-    onEnregistre: (() -> Unit)? = null
+    onEnregistre: (() -> Unit)? = null,
+    /**
+     * Pré-remplissage venu d'une capture (AND-06) : titre et origine proposés.
+     * C'est un remplissage de champ, modifiable et validé par l'utilisateur —
+     * aucune information n'est déduite du contenu de la note.
+     */
+    titreInitial: String? = null,
+    origineInitiale: String? = null,
+    /** Appelé avec l'identifiant produit, pour lier la capture d'origine. */
+    onCreee: ((String) -> Unit)? = null
 ) {
     val options by vm.options.collectAsStateWithLifecycle()
     val enEdition = boucleAModifier != null
     val cle = boucleAModifier?.id
 
-    var titre by remember(cle) { mutableStateOf(boucleAModifier?.titre ?: "") }
+    var titre by remember(cle) { mutableStateOf(boucleAModifier?.titre ?: titreInitial ?: "") }
     var type by remember(cle) { mutableStateOf(boucleAModifier?.type ?: "") }
-    var origine by remember(cle) { mutableStateOf(boucleAModifier?.origine ?: "") }
+    var origine by remember(cle) { mutableStateOf(boucleAModifier?.origine ?: origineInitiale ?: "") }
     var preuveAttendue by remember(cle) { mutableStateOf(boucleAModifier?.preuveAttendue ?: "") }
     var impact by remember(cle) { mutableStateOf(boucleAModifier?.impact ?: "") }
     var tiers by remember(cle) { mutableStateOf(boucleAModifier?.tiers ?: "") }
@@ -102,7 +111,7 @@ fun CreationForm(
                 echeance = echeance,
                 tiers = tiers.ifBlank { null },
                 milieu = milieu?.name,
-                onCree = { onFerme() }
+                onCree = { id -> onCreee?.invoke(id); onFerme() }
             )
         }
     }

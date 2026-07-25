@@ -10,6 +10,7 @@ import com.pontat.registreboucles.ui.screens.ConfigScreen
 import com.pontat.registreboucles.ui.screens.DebugScreen
 import com.pontat.registreboucles.ui.screens.JournalScreen
 import com.pontat.registreboucles.ui.screens.ListeScreen
+import com.pontat.registreboucles.ui.screens.ReceptionScreen
 import com.pontat.registreboucles.ui.screens.SupervisionScreen
 import com.pontat.registreboucles.ui.screens.SyncScreen
 
@@ -19,6 +20,7 @@ object Routes {
     const val CONFIG = "config"
     const val JOURNAL = "journal/{id}"
     const val SUPERVISION = "supervision"
+    const val RECEPTION = "reception"
     const val SYNC = "sync"
     fun journal(id: String) = "journal/$id"
 }
@@ -35,7 +37,17 @@ fun RegistreNavHost(vm: BoucleViewModel) {
                 onOuvrirDebug = { nav.navigate(Routes.DEBUG) },
                 onOuvrirConfig = { nav.navigate(Routes.CONFIG) },
                 onOuvrirJournal = { id -> nav.navigate(Routes.journal(id)) },
-                onOuvrirSupervision = { nav.navigate(Routes.SUPERVISION) }
+                onOuvrirSupervision = { nav.navigate(Routes.SUPERVISION) },
+                onOuvrirReception = { nav.navigate(Routes.RECEPTION) }
+            )
+        }
+        composable(Routes.RECEPTION) {
+            ReceptionScreen(
+                vm = vm,
+                onRetour = { nav.popBackStack() },
+                // « Créer une boucle » revient à la liste, où le formulaire
+                // existant s'ouvre pré-rempli : un seul formulaire dans l'app.
+                onCreerBoucle = { nav.popBackStack(Routes.LISTE, inclusive = false) }
             )
         }
         composable(Routes.SUPERVISION) {

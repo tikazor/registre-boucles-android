@@ -6,6 +6,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
+import com.pontat.registreboucles.data.Capture
+import com.pontat.registreboucles.data.StatutCapture
+import com.pontat.registreboucles.data.originePropose
+import com.pontat.registreboucles.data.titrePropose
 import com.pontat.registreboucles.data.ConflitFusion
 import com.pontat.registreboucles.data.ConflitSync
 import com.pontat.registreboucles.data.EvenementSync
@@ -21,6 +25,7 @@ import com.pontat.registreboucles.data.genererProchainId
 import com.pontat.registreboucles.importer.ImportException
 import com.pontat.registreboucles.importer.ImportResult
 import com.pontat.registreboucles.importer.JsonImporter
+import com.pontat.registreboucles.importer.LotAnalyseExporter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -419,6 +424,108 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
 
     fun effacerErreurImport() {
         _erreurImport.value = null
+    }
+
+    // ── Boîte de réception : captures (AND-06) ──
+
+    val captures: StateFlow<List<Capture>> = repository.observerCaptures()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Badge de la liste principale : nombre de captures BRUTE (0 = badge masqué). */
+    val capturesBrutes: StateFlow<Int> = repository.observerNombreCapturesBrutes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    private val _filtreCapture = MutableStateFlow<StatutCapture?>(StatutCapture.BRUTE)
+    val filtreCapture: StateFlow<StatutCapture?> = _filtreCapture.asStateFlow()
+
+    private val _rechercheCapture = MutableStateFlow("")
+    val rechercheCapture: StateFlow<String> = _rechercheCapture.asStateFlow()
+
+    private val _messageCapture = MutableStateFlow<String?>(null)
+    val messageCapture: StateFlow<String?> = _messageCapture.asStateFlow()
+
+    fun setFiltreCapture(statut: StatutCapture?) {
+        _filtreCapture.value = statut
+    }
+
+    fun setRechercheCapture(q: String) {
+        _rechercheCapture.value = q
+    }
+
+    fun effacerMessageCapture() {
+        _messageCapture.value = null
+    }
+
+    /** Nom d'appareil utilisé par les captures (code AND-07, nom libre, ou LOCAL). */
+    fun nomAppareilCapture(): String = repository.nomAppareilCapture()
+
+    /** Nom libre de repli, en l'absence de code appareil. */
+    fun definirNomAppareil(nom: String) {
+        repository.ecrireNomAppareil(nom)
+    }
+
+    fun ignorerCapture(id: String) {
+        viewModelScope.launch { repository.ignorerCapture(id) }
+    }
+
+    fun reactiverCapture(id: String) {
+        viewModelScope.launch { repository.reactiverCapture(id) }
+    }
+
+    /**
+     * Pré-remplissage du formulaire de création EXISTANT depuis une capture. Le
+     * titre et l'origine sont proposés (sujet fourni par l'app source ou première
+     * ligne) : c'est un remplissage de champ, pas une extraction d'information —
+     * rien n'est déduit du contenu, et l'utilisateur valide.
+     */
+    data class CreationDepuisCapture(
+        val captureId: String,
+        val titre: String,
+        val origine: String,
+        val contenu: String
+    )
+
+    private val _creationDepuisCapture = MutableStateFlow<CreationDepuisCapture?>(null)
+    val creationDepuisCapture: StateFlow<CreationDepuisCapture?> =
+        _creationDepuisCapture.asStateFlow()
+
+    fun demarrerCreationDepuisCapture(capture: Capture) {
+        _creationDepuisCapture.value = CreationDepuisCapture(
+            captureId = capture.id,
+            titre = capture.titrePropose(),
+            origine = capture.originePropose(),
+            contenu = capture.contenuBrut
+        )
+    }
+
+    fun annulerCreationDepuisCapture() {
+        _creationDepuisCapture.value = null
+    }
+
+    /**
+     * À appeler après la création réussie d'une boucle issue d'une capture :
+     * la capture passe en TRAITEE et porte l'identifiant produit (jamais l'un
+     * sans l'autre, cf. `versTraitee`).
+     */
+    fun lierCaptureCreee(captureId: String, boucleId: String) {
+        viewModelScope.launch {
+            repository.lierCaptureABoucle(captureId, boucleId)
+            _creationDepuisCapture.value = null
+        }
+    }
+
+    /** Nom de fichier proposé pour un lot d'analyse. */
+    fun nomFichierLot(): String = LotAnalyseExporter.nomFichier(System.currentTimeMillis())
+
+    /**
+     * Exporte un lot d'analyse vers l'URI choisi. [ids] null = toutes les captures
+     * BRUTE. Les captures exportées passent en EXPORTEE (réversible).
+     */
+    fun exporterLotAnalyse(uri: Uri, ids: Set<String>? = null) {
+        viewModelScope.launch {
+            val erreur = repository.exporterLotAnalyse(uri, ids)
+            _messageCapture.value = erreur ?: "Lot d'analyse exporté."
+        }
     }
 
     // ── Synchronisation par dossier partagé (AND-08) ──
