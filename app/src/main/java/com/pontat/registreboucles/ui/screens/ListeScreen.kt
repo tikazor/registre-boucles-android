@@ -91,9 +91,12 @@ import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.Milieu
 import com.pontat.registreboucles.data.estActive
+import com.pontat.registreboucles.data.estEcheanceProche
+import com.pontat.registreboucles.data.estEnRetard
 import com.pontat.registreboucles.data.estIA
 import com.pontat.registreboucles.data.estProposition
 import com.pontat.registreboucles.data.estTerminal
+import com.pontat.registreboucles.data.joursRestantsDepuis
 import com.pontat.registreboucles.data.statutTypé
 import com.pontat.registreboucles.ui.BoucleViewModel
 import com.pontat.registreboucles.ui.FiltreStatut
@@ -111,12 +114,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
-private fun joursRestants(echeanceMillis: Long): Long {
-    val ech = Instant.ofEpochMilli(echeanceMillis).atZone(ZoneId.systemDefault()).toLocalDate()
-    return ChronoUnit.DAYS.between(LocalDate.now(ZoneId.systemDefault()), ech)
-}
+/** Jours restants pour l'affichage ; délègue au prédicat partagé (data/Echeance.kt). */
+private fun joursRestants(echeanceMillis: Long): Long =
+    joursRestantsDepuis(echeanceMillis, LocalDate.now(ZoneId.systemDefault()))
 
 private fun correspond(b: Boucle, requete: String): Boolean {
     val q = requete.trim().lowercase()
@@ -126,10 +127,6 @@ private fun correspond(b: Boucle, requete: String): Boolean {
         b.impact, b.blocage, b.defaut, b.tiers, b.statut
     ).any { it.lowercase().contains(q) }
 }
-
-private data class Compteurs(
-    val ouvertes: Int, val enRetard: Int, val bientot: Int, val total: Int, val fermees: Int
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,28 +185,28 @@ fun ListeScreen(
     // exclues de la liste principale ET des compteurs.
     val registre = remember(boucles) { boucles.filter { !it.estProposition() } }
 
-    val compteurs = remember(registre) {
-        val ouv = registre.filter { it.estActive() }
-        Compteurs(
-            ouvertes = ouv.size,
-            enRetard = ouv.count { it.echeance != null && joursRestants(it.echeance) < 0 },
-            bientot = ouv.count { it.echeance != null && joursRestants(it.echeance) in 0..7 },
-            total = registre.size,
-            // « Fermées » = réellement terminales (un statut inconnu n'est pas compté ici).
-            fermees = registre.count { it.estTerminal() }
-        )
+    // Un SEUL prédicat par catégorie, utilisé pour le compteur ET pour le filtre :
+    // un indicateur du tableau de bord et le filtre qu'il déclenche ne peuvent pas
+    // donner des résultats différents.
+    val aujourdHui = remember { LocalDate.now(ZoneId.systemDefault()) }
+    val predicat: (FiltreStatut, Boucle) -> Boolean = { f, b ->
+        when (f) {
+            FiltreStatut.TOUTES -> true
+            FiltreStatut.OUVERTES -> b.estActive()
+            FiltreStatut.EN_RETARD -> b.estEnRetard(aujourdHui)
+            FiltreStatut.BIENTOT -> b.estEcheanceProche(aujourdHui)
+            // « Fermées » = réellement terminales : un statut inconnu (legacy)
+            // n'y atterrit pas, il reste visible dans « Toutes ».
+            FiltreStatut.FERMEES -> b.estTerminal()
+        }
     }
-    val liste = remember(registre, filtre, recherche, filtreMilieu) {
+
+    val compteurs = remember(registre, aujourdHui) {
+        FiltreStatut.entries.associateWith { f -> registre.count { predicat(f, it) } }
+    }
+    val liste = remember(registre, filtre, recherche, filtreMilieu, aujourdHui) {
         registre
-            .filter {
-                when (filtre) {
-                    FiltreStatut.TOUTES -> true
-                    FiltreStatut.OUVERTES -> it.estActive()
-                    // « Fermées » = réellement terminales : un statut inconnu (legacy)
-                    // n'y atterrit plus par défaut, il reste visible dans « Toutes ».
-                    FiltreStatut.FERMEES -> it.estTerminal()
-                }
-            }
+            .filter { predicat(filtre, it) }
             .filter { filtreMilieu == null || Milieu.depuis(it.milieu) == filtreMilieu }
             .filter { correspond(it, recherche) }
     }
@@ -309,24 +306,44 @@ fun ListeScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
 
-            // 3 tuiles stats.
+            // Tableau de bord : 3 tuiles CLIQUABLES = 3 filtres. Un appui sur la
+            // tuile active la filtre ; un second appui revient à « Toutes ».
             Row(
                 Modifier.fillMaxWidth().padding(12.dp, 12.dp, 12.dp, 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatTile("Ouvertes", compteurs.ouvertes, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                StatTile("En retard", compteurs.enRetard, Alerte, Modifier.weight(1f))
-                StatTile("≤ 7 jours", compteurs.bientot, Warn, Modifier.weight(1f))
+                val basculer: (FiltreStatut) -> Unit = { cible ->
+                    vm.setFiltreStatut(if (filtre == cible) FiltreStatut.TOUTES else cible)
+                }
+                StatTile(
+                    FiltreStatut.OUVERTES.libelle, compteurs[FiltreStatut.OUVERTES] ?: 0,
+                    MaterialTheme.colorScheme.primary, filtre == FiltreStatut.OUVERTES,
+                    Modifier.weight(1f)
+                ) { basculer(FiltreStatut.OUVERTES) }
+                StatTile(
+                    FiltreStatut.EN_RETARD.libelle, compteurs[FiltreStatut.EN_RETARD] ?: 0,
+                    Alerte, filtre == FiltreStatut.EN_RETARD, Modifier.weight(1f)
+                ) { basculer(FiltreStatut.EN_RETARD) }
+                StatTile(
+                    FiltreStatut.BIENTOT.libelle, compteurs[FiltreStatut.BIENTOT] ?: 0,
+                    Warn, filtre == FiltreStatut.BIENTOT, Modifier.weight(1f)
+                ) { basculer(FiltreStatut.BIENTOT) }
             }
 
-            // Filtres segmentés avec compteurs.
+            // Portées restantes — « Ouvertes » n'est PAS répété ici : c'est la tuile
+            // ci-dessus qui porte ce filtre (aucun libellé affiché deux fois).
             Row(
                 Modifier.fillMaxWidth().padding(12.dp, 0.dp, 12.dp, 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SegmentFiltre("Toutes", compteurs.total, filtre == FiltreStatut.TOUTES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.TOUTES) }
-                SegmentFiltre("Ouvertes", compteurs.ouvertes, filtre == FiltreStatut.OUVERTES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.OUVERTES) }
-                SegmentFiltre("Fermées", compteurs.fermees, filtre == FiltreStatut.FERMEES, Modifier.weight(1f)) { vm.setFiltreStatut(FiltreStatut.FERMEES) }
+                SegmentFiltre(
+                    FiltreStatut.TOUTES.libelle, compteurs[FiltreStatut.TOUTES] ?: 0,
+                    filtre == FiltreStatut.TOUTES, Modifier.weight(1f)
+                ) { vm.setFiltreStatut(FiltreStatut.TOUTES) }
+                SegmentFiltre(
+                    FiltreStatut.FERMEES.libelle, compteurs[FiltreStatut.FERMEES] ?: 0,
+                    filtre == FiltreStatut.FERMEES, Modifier.weight(1f)
+                ) { vm.setFiltreStatut(FiltreStatut.FERMEES) }
             }
 
             // Recherche.
@@ -498,18 +515,38 @@ fun ListeScreen(
     }
 }
 
+/**
+ * Tuile d'indicateur, cliquable : elle EST le filtre de sa catégorie. Quand elle
+ * est active, elle prend un liseré et un fond teintés de sa propre couleur
+ * (palette inchangée) pour que le filtre courant se lise d'un coup d'œil.
+ */
 @Composable
-private fun StatTile(label: String, valeur: Int, couleur: Color, modifier: Modifier = Modifier) {
+private fun StatTile(
+    label: String,
+    valeur: Int,
+    couleur: Color,
+    actif: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val fond = if (actif) couleur.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface
     Column(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .background(fond, RoundedCornerShape(14.dp))
+            .then(
+                if (actif) Modifier.border(1.5.dp, couleur, RoundedCornerShape(14.dp))
+                else Modifier
+            )
+            .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(valeur.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = couleur)
         Text(
             label, fontSize = 10.5.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            color = if (actif) couleur
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            fontWeight = if (actif) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.padding(top = 2.dp)
         )
     }

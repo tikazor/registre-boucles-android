@@ -97,6 +97,7 @@ Le cœur des règles est écrit en fonctions **sans dépendance Android** :
 | `genererProchainId` | `Identifiants.kt` | Prochain `B-###` |
 | `doitReutiliserBackup`, `ageBackupDepuisNom` | `Backup.kt` | Décision d'anti-rafale |
 | `Statut` / `Milieu` / `SourceBoucle` + extensions | `Statut.kt`, … | Prédicats du cycle de vie |
+| `estEnRetard`, `estEcheanceProche`, `joursRestantsDepuis` | `Echeance.kt` | Catégories d'échéance du tableau de bord (date du jour en paramètre, donc testables) |
 
 **Pourquoi.** Ces fonctions sont testables en **JVM pure**, sans émulateur ni
 appareil : `./gradlew test` tourne en quelques secondes et **en CI**, sur chaque

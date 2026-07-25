@@ -12,10 +12,24 @@ commits **par lot de travail**, pas par commit.
 ## [Non publié]
 
 ### Added
+- **Tableau de bord cliquable** : les trois tuiles (« Ouvertes », « En retard »,
+  « ≤ 7 jours ») deviennent des filtres. Un appui filtre la liste, un second
+  revient à « Toutes ». La tuile active est signalée par un liseré et un fond
+  teintés de sa propre couleur (palette inchangée). Deux nouveaux filtres :
+  `EN_RETARD` et `BIENTOT`.
 - **Documentation Diátaxis** (lot AND-05) : `docs/00_INDEX.md`,
   `docs/reference/data_model.md`, `docs/explanation/invariants.md`,
   `docs/explanation/architecture.md`, 4 guides `docs/how-to/`, ce `CHANGELOG.md`
   et `AGENTS.md` (contrat pour les futures sessions de travail).
+
+### Fixed
+- **Doublon du tableau de bord** : « Ouvertes » était affiché deux fois, en tuile
+  et en filtre. La rangée de filtres ne porte plus que « Toutes » et
+  « Fermées » ; chaque libellé apparaît désormais exactement une fois.
+- **Cohérence indicateur ↔ filtre** : les catégories d'échéance sont définies une
+  seule fois (`data/Echeance.kt`) et servent à la fois au compteur et au filtre,
+  ce qui rend impossible qu'une tuile annonce un nombre différent du contenu
+  qu'elle affiche. Couvert par `EcheanceTest`.
 
 ---
 

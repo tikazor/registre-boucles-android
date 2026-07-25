@@ -27,10 +27,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Filtre par statut de l'écran Liste. "Ouverte" = statut != "fermee". */
+/**
+ * Filtre de l'écran Liste. Chaque valeur correspond à UN indicateur cliquable du
+ * tableau de bord : aucun libellé n'est affiché deux fois, et le compteur d'un
+ * indicateur est toujours le nombre de résultats de son propre filtre (mêmes
+ * prédicats, cf. data/Echeance.kt et Statut.estActive).
+ */
 enum class FiltreStatut(val libelle: String) {
     TOUTES("Toutes"),
     OUVERTES("Ouvertes"),
+    EN_RETARD("En retard"),
+    BIENTOT("≤ 7 jours"),
     FERMEES("Fermées")
 }
 

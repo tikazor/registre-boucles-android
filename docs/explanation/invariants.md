@@ -109,6 +109,15 @@ synchronisation repose sur le commentaire du DAO et la revue. Ajouter une valeur
 à `Statut` sans mettre à jour les deux requêtes SQL est le scénario de
 régression le plus probable de tout le projet.
 
+**Extension aux catégories d'échéance.** Le même principe s'applique aux
+catégories « en retard » et « ≤ 7 jours » du tableau de bord : elles sont
+définies une seule fois dans `Echeance.kt` (`estEnRetard`,
+`estEcheanceProche`), et `ListeScreen` s'en sert **à la fois** pour le compteur
+affiché sur la tuile et pour le filtre que la tuile déclenche. Un indicateur ne
+peut donc pas annoncer un nombre différent de ce que son filtre montre.
+Couvert par `EcheanceTest` (5 tests), dont l'exclusivité retard/proche et
+l'inclusion dans les actives.
+
 ---
 
 ## I4 — Backup avant toute écriture destructive
