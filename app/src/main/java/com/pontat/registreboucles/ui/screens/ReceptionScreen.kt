@@ -75,6 +75,7 @@ fun ReceptionScreen(
     val filtre by vm.filtreCapture.collectAsStateWithLifecycle()
     val recherche by vm.rechercheCapture.collectAsStateWithLifecycle()
     val message by vm.messageCapture.collectAsStateWithLifecycle()
+    val liens by vm.liensCaptures.collectAsStateWithLifecycle()
 
     var consultee by remember { mutableStateOf<Capture?>(null) }
 
@@ -168,6 +169,7 @@ fun ReceptionScreen(
             items(visibles, key = { it.id }) { capture ->
                 CarteCapture(
                     capture = capture,
+                    bouclesProduites = vm.bouclesIssuesDe(capture.id, liens),
                     onConsulter = { consultee = capture },
                     onIgnorer = { vm.ignorerCapture(capture.id) },
                     onReactiver = { vm.reactiverCapture(capture.id) },
@@ -198,7 +200,8 @@ fun ReceptionScreen(
                     Text(
                         "\nCapturée le ${dateHeure(c.capturee)} · ${c.appareil}" +
                             (c.appSource?.let { " · $it" } ?: "") +
-                            (c.boucleLiee?.let { "\nBoucle produite : $it" } ?: ""),
+                            (vm.bouclesIssuesDe(c.id, liens).ifEmpty { null }
+                                ?.let { "\nBoucle(s) produite(s) : ${it.joinToString(", ")}" } ?: ""),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -223,6 +226,7 @@ fun ReceptionScreen(
 @Composable
 private fun CarteCapture(
     capture: Capture,
+    bouclesProduites: List<String>,
     onConsulter: () -> Unit,
     onIgnorer: () -> Unit,
     onReactiver: () -> Unit,
@@ -257,11 +261,19 @@ private fun CarteCapture(
         }
         Text(capture.extrait(), fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            capture.appareil + (capture.appSource?.let { " · $it" } ?: "") +
-                (capture.boucleLiee?.let { " · → $it" } ?: ""),
+            capture.appareil + (capture.appSource?.let { " · $it" } ?: ""),
             fontSize = 10.5.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        // Sens inverse de la traçabilité : les boucles nées de cette note. Lu dans
+        // la table de liaison, qui couvre aussi le cas « plusieurs boucles ».
+        if (bouclesProduites.isNotEmpty()) {
+            Text(
+                "A produit : ${bouclesProduites.joinToString(", ")}",
+                fontSize = 10.5.sp,
+                color = Mnemosyne.couleurs.accent
+            )
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OptionChoix("Consulter", false, Modifier.weight(1f), onConsulter)
             when (statut) {

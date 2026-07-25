@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.BoucleRepository
 import com.pontat.registreboucles.data.Capture
+import com.pontat.registreboucles.data.CaptureBoucle
 import com.pontat.registreboucles.data.StatutCapture
 import com.pontat.registreboucles.data.originePropose
 import com.pontat.registreboucles.data.titrePropose
@@ -329,10 +330,16 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
                 return@launch
             }
             _erreurImport.value = null
+            // Origines déclarées mais inconnues ici : tolérées, jamais bloquantes,
+            // mais signalées dans le rapport d'import (AND-09, étape 1).
+            _originesInconnues.value =
+                repository.capturesInconnues(res.origines.values.flatten())
             if (repository.estVide()) {
                 // Échec de la sauvegarde de sécurité = import annulé (rien n'est écrasé).
                 try {
-                    repository.importerEcraser(res.boucles, res.mouvements, res.journaux, res.suppressions)
+                    repository.importerEcraser(
+                        res.boucles, res.mouvements, res.journaux, res.suppressions, res.origines
+                    )
                     _baseVide.value = false
                 } catch (e: Exception) {
                     _erreurImport.value = e.message ?: "Import annulé : sauvegarde impossible."
@@ -348,7 +355,9 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
             try {
-                repository.importerAjouter(res.boucles, res.mouvements, res.journaux, res.suppressions)
+                repository.importerAjouter(
+                    res.boucles, res.mouvements, res.journaux, res.suppressions, res.origines
+                )
                 _importEnAttente.value = null
             } catch (e: Exception) {
                 // Filet manqué : rien n'a été écrit. On ferme le choix et on
@@ -364,7 +373,9 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
         val res = _importEnAttente.value ?: return
         viewModelScope.launch {
             try {
-                repository.importerEcraser(res.boucles, res.mouvements, res.journaux, res.suppressions)
+                repository.importerEcraser(
+                        res.boucles, res.mouvements, res.journaux, res.suppressions, res.origines
+                    )
                 _importEnAttente.value = null
             } catch (e: Exception) {
                 _importEnAttente.value = null
@@ -400,7 +411,7 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
             try {
                 repository.importerFusionner(
                     etat.res.boucles, etat.res.mouvements, etat.res.journaux, prendreEntrant,
-                    etat.res.suppressions
+                    etat.res.suppressions, etat.res.origines
                 )
                 _fusionEnCours.value = null
             } catch (e: Exception) {
@@ -455,6 +466,38 @@ class BoucleViewModel(private val repository: BoucleRepository) : ViewModel() {
     fun effacerMessageCapture() {
         _messageCapture.value = null
     }
+
+    /**
+     * Liens capture <-> boucle (AND-09). La table est petite : on l'observe en
+     * entier, et les écrans y lisent l'origine d'une boucle comme les boucles
+     * produites par une capture — une seule source pour les deux sens.
+     */
+    val liensCaptures: StateFlow<List<CaptureBoucle>> = repository.observerLiens()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Captures d'origine d'une boucle, telles qu'affichables : celles présentes en
+     * base, plus les identifiants déclarés mais absents ici — signalés, pas cachés
+     * (le lot a pu être analysé après une réinstallation).
+     */
+    data class OrigineBoucle(val captures: List<Capture>, val idsAbsents: List<String>)
+
+    fun origineDe(boucleId: String, liens: List<CaptureBoucle>, captures: List<Capture>): OrigineBoucle {
+        val ids = liens.filter { it.boucleId == boucleId }.map { it.captureId }
+        val parId = captures.associateBy { it.id }
+        return OrigineBoucle(
+            captures = ids.mapNotNull { parId[it] }.sortedByDescending { it.capturee },
+            idsAbsents = ids.filterNot { it in parId }
+        )
+    }
+
+    /** Boucles produites par une capture (dans l'ordre de liaison). */
+    fun bouclesIssuesDe(captureId: String, liens: List<CaptureBoucle>): List<String> =
+        liens.filter { it.captureId == captureId }.sortedBy { it.lieeLe }.map { it.boucleId }
+
+    /** Identifiants de captures déclarés par l'import en attente et inconnus ici. */
+    private val _originesInconnues = MutableStateFlow<List<String>>(emptyList())
+    val originesInconnues: StateFlow<List<String>> = _originesInconnues.asStateFlow()
 
     /** Nom d'appareil utilisé par les captures (code AND-07, nom libre, ou LOCAL). */
     fun nomAppareilCapture(): String = repository.nomAppareilCapture()

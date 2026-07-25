@@ -108,6 +108,7 @@ import com.pontat.registreboucles.ui.formaterDate
 import com.pontat.registreboucles.ui.formaterDateHeure
 import com.pontat.registreboucles.ui.libelleStatut
 import com.pontat.registreboucles.R
+import com.pontat.registreboucles.ui.components.SectionOrigine
 import com.pontat.registreboucles.ui.theme.Mnemosyne
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -156,6 +157,7 @@ fun ListeScreen(
     val cibleWidget by vm.cibleWidget.collectAsStateWithLifecycle()
     val capturesBrutes by vm.capturesBrutes.collectAsStateWithLifecycle()
     val creationDepuisCapture by vm.creationDepuisCapture.collectAsStateWithLifecycle()
+    val originesInconnues by vm.originesInconnues.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val filtreMilieu by vm.filtreMilieu.collectAsStateWithLifecycle()
@@ -542,6 +544,20 @@ fun ListeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    // Captures d'origine déclarées mais absentes ici : tolérées,
+                    // signalées — un lot a pu être analysé après une réinstallation.
+                    if (originesInconnues.isNotEmpty()) {
+                        Text(
+                            "${originesInconnues.size} capture(s) d'origine déclarée(s) " +
+                                "mais absente(s) de cet appareil : " +
+                                originesInconnues.take(3).joinToString(", ") +
+                                (if (originesInconnues.size > 3) "…" else "") +
+                                ". Les boucles sont importées normalement, le lien est " +
+                                "conservé tel quel.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     if (enAttente.idsNonConformes.isNotEmpty()) {
                         Text(
                             "${enAttente.idsNonConformes.size} identifiant(s) hors convention " +
@@ -754,6 +770,10 @@ private fun ContenuDeplie(
     onOuvrirJournal: () -> Unit
 ) {
     val mouvements by vm.observerMouvements(boucle.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    // Origine : les captures qui ont fait naître cette boucle (AND-09).
+    val liens by vm.liensCaptures.collectAsStateWithLifecycle()
+    val captures by vm.captures.collectAsStateWithLifecycle()
+    val origine = remember(boucle.id, liens, captures) { vm.origineDe(boucle.id, liens, captures) }
 
     Column(
         Modifier.padding(18.dp, 0.dp, 18.dp, 17.dp),
@@ -779,6 +799,9 @@ private fun ContenuDeplie(
 
         ChampInfo("Impact", boucle.impact)
         boucle.defaut?.let { ChampInfo("Action par défaut", it) }
+
+        // Remonter de la boucle à la note brute dont elle est née.
+        SectionOrigine(origine.captures, origine.idsAbsents)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
