@@ -24,9 +24,9 @@ Le noyau :
 
 - [`docs/schema.md`](docs/schema.md) — contrat JSON complet (champs, statuts,
   provenance, modes d'import). Auto-suffisant : donnable tel quel à une IA.
-- [`docs/reference/data_model.md`](docs/reference/data_model.md) — modèle Room v4.
-- [`docs/explanation/invariants.md`](docs/explanation/invariants.md) — les 8
-  règles garanties par construction. À lire avant toute modification.
+- [`docs/reference/data_model.md`](docs/reference/data_model.md) — modèle Room v8.
+- [`docs/explanation/invariants.md`](docs/explanation/invariants.md) — les 16
+  invariants garantis par construction. À lire avant toute modification.
 - [`docs/decisions.md`](docs/decisions.md) — décisions d'architecture (ADR).
 
 Guides pratiques : [importer des données](docs/how-to/importer_des_donnees.md) ·
@@ -35,6 +35,7 @@ Guides pratiques : [importer des données](docs/how-to/importer_des_donnees.md) 
 [publier et installer](docs/how-to/build_et_release.md).
 
 Contribuer (agent ou humain) : [`AGENTS.md`](AGENTS.md) ·
+contrat de session (chargé automatiquement par Claude Code) : [`CLAUDE.md`](CLAUDE.md) ·
 historique : [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Installation
