@@ -69,6 +69,7 @@ bug à signaler, pas une nuance à interpréter.
 | [`../README.md`](../README.md) | reference | Présentation du projet, garantie hors-ligne, installation. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | reference | Historique par lot (Keep a Changelog / SemVer). |
 | [`../AGENTS.md`](../AGENTS.md) | how-to | **Contrat de travail** : protocole d'investigation, interdits permanents, format des lots, gate standard. À lire avant de toucher au dépôt. |
+| [`../CLAUDE.md`](../CLAUDE.md) | how-to | Contrat de session chargé automatiquement par Claude Code : protocole d'investigation, invariants condensés, interdits permanents, gate standard. |
 
 ---
 
