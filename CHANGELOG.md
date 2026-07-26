@@ -32,6 +32,17 @@ commits **par lot de travail**, pas par commit.
   `CLAUDE.md`.
 
 ### Changed
+- **ADR-03 tranché** (lot AND-11) : on reste sur le chiffrement de l'OS ; la
+  protection des données repose sur une règle de saisie — aucune donnée
+  nominative — plutôt que sur un chiffrement applicatif. Réouverture prévue si
+  des données nominatives entrent ou si des backups sortent de l'appareil.
+- **ADR-04 tranché** (lot AND-11) : le flux « action par défaut » (`defaut` →
+  journal `DEFAUT` → `defaut_applique`) est retenu, exécution différée jusqu'à la
+  preuve d'usage de boucles bloquées à échéance. Suivi au `BACKLOG.md` (B-01).
+- **Règle de non-nominativité inscrite dans le contrat de saisie** (lot AND-11) :
+  ajoutée à `docs/schema.md`, `CLAUDE.md`, `AGENTS.md` et au how-to de capture,
+  comme règle de saisie distincte des invariants (l'app n'analyse aucun contenu,
+  I15). Ouverture d'un `BACKLOG.md` recensant les travaux différés.
 - **`AGENTS.md` aligné sur les 16 invariants** (lot AND-10, étape 0) : le contrat
   agent annonçait encore 8 invariants et contredisait `CLAUDE.md` sur I1, I2 et
   I7. Le tableau I1 → I16 est reconstruit à partir de la source de vérité
