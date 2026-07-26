@@ -28,21 +28,31 @@ construit pas sur une base instable.
 
 ---
 
-## 2. Les 8 invariants — liste courte
+## 2. Les 16 invariants — liste courte
 
 Détail, preuve et couverture de test :
-[`docs/explanation/invariants.md`](docs/explanation/invariants.md).
+[`docs/explanation/invariants.md`](docs/explanation/invariants.md). Version
+condensée identique à celle de [`CLAUDE.md`](CLAUDE.md) — la même vérité, pas une
+troisième formulation.
 
 | # | Invariant |
 |---|---|
-| I1 | Aucun état terminal sans entrée `Journal` — `executerTransitionTerminale` est le chemin **unique** |
-| I2 | `FERMEE` seulement depuis une boucle active ; `REJETEE` seulement depuis `PROPOSEE` |
-| I3 | Une seule définition d'« active » : `Statut.estActive()`, dont les requêtes DAO sont le miroir |
-| I4 | Sauvegarde **avant** toute écriture destructive ; échec de sauvegarde ⇒ opération abandonnée |
-| I5 | Zéro réseau : pas de permission `INTERNET`, vérifié en CI sur le manifest **mergé** |
-| I6 | Supervision non contournable : `source = ia` + boucle nouvelle ⇒ forcée en `proposee` |
-| I7 | Fusion additive : jamais de suppression ; `id`, `creee`, `statut`, `source` préservés |
-| I8 | Aucune donnée masquée silencieusement (statut inconnu = visible + marqué) |
+| I1 | Aucun état terminal sans entrée `Journal` : garanti par `executerTransitionTerminale` (canal commande) OU `completerJournaux` (canaux réplication et import). Aucun terminal sans journal, quel que soit le chemin |
+| I2 | Gardes de transition (`FERMEE` depuis actif, `REJETEE` depuis `PROPOSEE`) : canal commande seul. La réplication applique un état déjà validé à l'origine ; les rejouer casserait la convergence. L'import n'est pas de la confiance (AND-10) |
+| I3 | « Active » (ouverte ∪ en_cours) définie une seule fois (`estActive`) ; le SQL du DAO en est le miroir, jamais une définition concurrente |
+| I4 | Aucune écriture destructive sans backup strict réussi préalable ; échec du backup ⇒ opération abandonnée |
+| I5 | Zéro réseau par construction : pas de permission `INTERNET`, aucun client HTTP/SDK ; garde CI bloquante sur le manifest mergé |
+| I6 | Toute boucle NOUVELLE `source=ia` forcée en `proposee` à l'import, quel que soit le statut déclaré (supervision non contournable) |
+| I7 | Fusion additive sur TOUS les canaux : jamais d'effacement, `id/creee/source` d'une boucle existante toujours préservés. `statut` préservé au seul canal import ; en réplication le moteur adopte le statut distant (I13) |
+| I8 | Aucune donnée masquée : un statut inconnu reste visible dans « Toutes » avec marqueur ; rejeté à l'import |
+| I9 | Tout id de **boucle** porte le préfixe de l'appareil créateur ; le code appareil n'est jamais sauvegardé ni restauré (`registre-appareil.xml` exclu). Exceptions : captures (`C-<horodatage>-<hex>`) et ids historiques tolérés à l'import |
+| I10 | Toute suppression écrit une tombstone dans la même transaction ; jamais d'effacement muet |
+| I11 | Un appareil n'écrit QUE son fichier `etat-<CODE>.json` ; il lit les autres, ne les modifie jamais |
+| I12 | Toute fusion est précédée d'un backup strict forcé ; échec ⇒ pas de fusion |
+| I13 | Aucun écrasement silencieux : chaque champ remplacé est tracé ; l'indécidable devient un conflit, rien n'est écrit |
+| I14 | Une capture n'est jamais supprimée, seulement marquée ; `contenuBrut` immuable |
+| I15 | Aucune analyse de contenu dans l'app : pas de mots-clés, pas d'échéance déduite, aucune boucle créée automatiquement |
+| I16 | Une proposition n'est pas une décision : l'import ne change aucun statut de capture ; `TRAITEE` à l'acceptation, `BRUTE` au rejet |
 
 ---
 
@@ -56,14 +66,18 @@ seul.
    de LLM, ni WorkManager de synchronisation. L'IA est hors de l'app,
    par construction.
 2. **Ne pas écrire un statut terminal** (`fermee`, `rejetee`,
-   `defaut_applique`) ailleurs que dans `executerTransitionTerminale()`.
-3. **Ne jamais supprimer un `Mouvement` ou un `Journal`** — sauf par la
-   cascade assumée d'un import « Écraser ».
+   `defaut_applique`) sans garantir son `Journal` : au canal commande via
+   `executerTransitionTerminale()`, aux canaux réplication et import via
+   `completerJournaux()`.
+3. **Ne jamais supprimer un `Mouvement`, un `Journal`, une capture ou une
+   tombstone.**
 4. **Ne jamais écraser sans sauvegarde préalable réussie.**
-5. **Ne pas trancher un ADR** à la place du commanditaire. Les décisions
+5. **Ne pas analyser le contenu des captures dans l'app** (pas de mots-clés,
+   pas d'échéance déduite, aucune boucle créée automatiquement).
+6. **Ne pas trancher un ADR** à la place du commanditaire. Les décisions
    ouvertes de [`docs/decisions.md`](docs/decisions.md) restent ouvertes ; si un
    travail bute dessus, écrire « non tranché — cf. ADR-0X » et continuer.
-6. **Ne pas inventer.** Une affirmation dans le code ou la documentation doit
+7. **Ne pas inventer.** Une affirmation dans le code ou la documentation doit
    être vérifiable. À défaut : écrire « à confirmer ».
 
 ---
