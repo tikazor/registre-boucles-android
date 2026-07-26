@@ -70,6 +70,7 @@ bug à signaler, pas une nuance à interpréter.
 | [`../CHANGELOG.md`](../CHANGELOG.md) | reference | Historique par lot (Keep a Changelog / SemVer). |
 | [`../AGENTS.md`](../AGENTS.md) | how-to | **Contrat de travail** : protocole d'investigation, interdits permanents, format des lots, gate standard. À lire avant de toucher au dépôt. |
 | [`../CLAUDE.md`](../CLAUDE.md) | how-to | Contrat de session chargé automatiquement par Claude Code : protocole d'investigation, invariants condensés, interdits permanents, gate standard. |
+| [`../BACKLOG.md`](../BACKLOG.md) | reference | Travaux différés (`B-xx`) : décisions tranchées en attente d'exécution, dettes, questions produit, chacun avec sa condition de déclenchement. |
 
 ---
 
@@ -82,8 +83,8 @@ relèvent du commanditaire. Aucun lot ne doit les arbitrer seul.
 |---|---|---|
 | **ADR-01** | `milieu` : enum figé à 4 valeurs ou liste configurable comme Type/Tiers ? | Toute évolution des catégories de milieu ; incohérence assumée avec Type/Tiers. |
 | **ADR-02** | Stratégie d'identifiants en contexte multi-producteurs (`B-###` / `IA-###` / UUID ?). | L'arrivée d'une seconde source d'écriture ; aujourd'hui la convention de préfixe suffit. |
-| **ADR-03** | Chiffrement de la base (SQLCipher) : à partir de quel seuil ? | La protection au repos des données sensibles, et le chiffrement des backups exportés. |
-| **ADR-04** | `blocage` / `defaut` / statut `defaut_applique` : implémenter le flux « appliquer l'action par défaut » ou les retirer du modèle ? | Trois champs et un statut existent sans aucun flux applicatif : `defaut_applique` n'est atteignable que par import. |
+
+_ADR-03 et ADR-04 tranchés le 2026-07-26 (cf. [`decisions.md`](decisions.md)) : ADR-03 reste sur le chiffrement de l'OS avec règle de saisie ; ADR-04 retient le flux « action par défaut », exécution différée (BACKLOG `B-01`)._
 
 ---
 
