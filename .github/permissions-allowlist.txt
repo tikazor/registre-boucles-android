@@ -1,0 +1,35 @@
+# Liste blanche des permissions autorisées dans le manifest MERGÉ (app + dépendances).
+#
+# Construite à partir des permissions réellement présentes dans le manifest mergé
+# release aujourd'hui (AND-10, étape 2) — lues, pas supposées. Origine de chacune
+# tracée via app/build/outputs/logs/manifest-merger-release-report.txt.
+#
+# La garde CI (.github/workflows/build.yml) extrait TOUTES les uses-permission du
+# manifest mergé et échoue si l'une d'elles ne figure pas ci-dessous : une nouvelle
+# permission arrivant par manifest merge d'une dépendance devient donc visible et
+# bloquante. INTERNET est refusée explicitement par la garde, MÊME si quelqu'un
+# l'ajoutait à cette liste.
+#
+# Format : une permission par ligne ; les lignes vides et « # » sont ignorées.
+# Toute entrée doit porter en commentaire la raison de sa présence.
+
+# WorkManager (androidx.work:work-runtime) — planificateur utilisé par Glance pour
+# rafraîchir le widget hors ligne. Maintient l'appareil éveillé le temps d'un travail.
+android.permission.WAKE_LOCK
+
+# WorkManager (androidx.work:work-runtime) — lit l'état de connectivité pour ses
+# contraintes de tâches. Lecture d'un état seulement : ne donne AUCUN accès réseau
+# (c'est INTERNET qui l'accorderait, et elle reste absente). Zéro réseau tient (I5).
+android.permission.ACCESS_NETWORK_STATE
+
+# WorkManager (androidx.work:work-runtime) — réarme les tâches persistées après un
+# redémarrage de l'appareil, pour que le widget reste à jour.
+android.permission.RECEIVE_BOOT_COMPLETED
+
+# WorkManager (androidx.work:work-runtime) + androidx.core — exécution d'un travail
+# en service au premier plan quand le système l'exige.
+android.permission.FOREGROUND_SERVICE
+
+# androidx.core — permission de signature protégeant le BroadcastReceiver dynamique
+# interne (non exporté). Propre à l'app, préfixée par l'applicationId.
+com.pontat.registreboucles.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION

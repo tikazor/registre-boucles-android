@@ -24,7 +24,9 @@ de mémoire.
 - **I4** — Aucune écriture destructive sans backup strict réussi préalable ;
   échec du backup ⇒ opération abandonnée.
 - **I5** — Zéro réseau par construction : pas de permission INTERNET, aucun client
-  HTTP/SDK ; garde CI bloquante sur le manifest mergé.
+  HTTP/SDK ; garde CI en liste blanche de permissions sur le manifest mergé
+  (toute permission hors `.github/permissions-allowlist.txt` bloque le build ;
+  INTERNET refusée explicitement).
 - **I6** — Toute boucle NOUVELLE `source=ia` forcée en `proposee` à l'import,
   quel que soit le statut déclaré (supervision non contournable).
 - **I7** — Fusion additive sur TOUS les canaux : jamais d'effacement,

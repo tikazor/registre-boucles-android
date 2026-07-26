@@ -41,7 +41,7 @@ troisième formulation.
 | I2 | Gardes de transition (`FERMEE` depuis actif, `REJETEE` depuis `PROPOSEE`) : canal commande seul. La réplication applique un état déjà validé à l'origine ; les rejouer casserait la convergence. L'import n'est pas de la confiance (AND-10) |
 | I3 | « Active » (ouverte ∪ en_cours) définie une seule fois (`estActive`) ; le SQL du DAO en est le miroir, jamais une définition concurrente |
 | I4 | Aucune écriture destructive sans backup strict réussi préalable ; échec du backup ⇒ opération abandonnée |
-| I5 | Zéro réseau par construction : pas de permission `INTERNET`, aucun client HTTP/SDK ; garde CI bloquante sur le manifest mergé |
+| I5 | Zéro réseau par construction : pas de permission `INTERNET`, aucun client HTTP/SDK ; garde CI en liste blanche de permissions sur le manifest mergé (toute permission hors `.github/permissions-allowlist.txt` bloque le build ; INTERNET refusée explicitement) |
 | I6 | Toute boucle NOUVELLE `source=ia` forcée en `proposee` à l'import, quel que soit le statut déclaré (supervision non contournable) |
 | I7 | Fusion additive sur TOUS les canaux : jamais d'effacement, `id/creee/source` d'une boucle existante toujours préservés. `statut` préservé au seul canal import ; en réplication le moteur adopte le statut distant (I13) |
 | I8 | Aucune donnée masquée : un statut inconnu reste visible dans « Toutes » avec marqueur ; rejeté à l'import |

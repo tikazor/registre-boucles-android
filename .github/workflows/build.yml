@@ -61,19 +61,54 @@ jobs:
             -Pandroid.injected.signing.key.password=$KEY_PASS
 
       # Garde permanente hors-ligne : porte sur le manifest MERGÉ (app + libs),
-      # là où une permission INTERNET arriverait par manifest merge d'une dépendance.
-      - name: Vérifier l'absence de réseau (manifest mergé)
+      # là où une permission arriverait par manifest merge d'une dépendance.
+      # LISTE BLANCHE : toute permission mergée hors de
+      # .github/permissions-allowlist.txt fait échouer le build. INTERNET reste
+      # refusée explicitement, même si elle figurait dans la liste.
+      - name: Vérifier l'absence de réseau (liste blanche de permissions)
         run: |
           MERGED=$(find app/build/intermediates -path '*merged_manifest*release*' -name AndroidManifest.xml | head -1)
           test -n "$MERGED" || { echo "Manifest mergé introuvable"; exit 1; }
           echo "Manifest mergé : $MERGED"
+
+          ALLOWLIST=.github/permissions-allowlist.txt
+          test -f "$ALLOWLIST" || { echo "Liste blanche introuvable : $ALLOWLIST"; exit 1; }
+
+          # INTERNET refusée explicitement — dans le manifest ET dans la liste.
           if grep -q "android.permission.INTERNET" "$MERGED"; then
             echo "ÉCHEC : permission INTERNET détectée dans le manifest mergé"; exit 1;
           fi
+          if grep -qE '^[[:space:]]*android\.permission\.INTERNET[[:space:]]*$' "$ALLOWLIST"; then
+            echo "ÉCHEC : INTERNET ne peut PAS figurer dans la liste blanche"; exit 1;
+          fi
+
+          # Liste blanche normalisée : sans commentaires ni lignes vides,
+          # espaces retirés PAR LIGNE (les sauts de ligne sont préservés).
+          ALLOWED=$(grep -vE '^[[:space:]]*(#|$)' "$ALLOWLIST" | sed -E 's/[[:space:]]//g' | sort -u)
+
+          # Toutes les uses-permission réellement présentes dans le manifest mergé.
+          PRESENT=$(grep -oE '<uses-permission[^>]*android:name="[^"]+"' "$MERGED" \
+            | sed -E 's/.*android:name="([^"]+)".*/\1/' | sort -u)
+
+          echo "Permissions présentes dans le manifest mergé :"
+          echo "$PRESENT" | sed 's/^/  - /'
+
+          HORS_LISTE=0
+          for perm in $PRESENT; do
+            if ! printf '%s\n' "$ALLOWED" | grep -qxF "$perm"; then
+              echo "ÉCHEC : permission hors liste blanche : $perm"
+              HORS_LISTE=1
+            fi
+          done
+          if [ "$HORS_LISTE" -ne 0 ]; then
+            echo "→ Ajoute la permission à $ALLOWLIST (avec sa justification) ou retire-la."
+            exit 1
+          fi
+
           if grep -rqiE "okhttp|retrofit|ktor-client" app/build.gradle.kts; then
             echo "ÉCHEC : dépendance réseau détectée"; exit 1;
           fi
-          echo "OK : aucune permission INTERNET, aucune dépendance réseau."
+          echo "OK : aucune permission hors liste blanche, aucune INTERNET, aucune dépendance réseau."
 
       - name: Get build tag
         id: version

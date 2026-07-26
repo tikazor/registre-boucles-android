@@ -218,12 +218,17 @@ peut émettre une requête.
 réseau dans `app/build.gradle.kts`. Les propositions d'IA arrivent
 exclusivement par un fichier JSON importé à la main (SAF).
 
-**Vérifié par.** Un step CI **permanent** (AND-04), exécuté après
-`assembleRelease` et **avant** la publication de la Release, qui échoue si :
-- `android.permission.INTERNET` apparaît dans le **manifest mergé**
-  (`app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml`) —
-  c'est là qu'une permission injectée par une dépendance apparaîtrait, invisible
-  dans le source ;
+**Vérifié par.** Un step CI **permanent** (AND-04, durci en AND-10), exécuté
+après `assembleRelease` et **avant** la publication de la Release. Il porte sur
+le **manifest mergé**
+(`app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml`) —
+là où une permission injectée par une dépendance apparaîtrait, invisible dans le
+source — et échoue si :
+- une `uses-permission` du manifest mergé ne figure **pas** dans la liste
+  blanche versionnée `.github/permissions-allowlist.txt` (chaque entrée y porte
+  la raison de sa présence) ;
+- `android.permission.INTERNET` apparaît dans le manifest mergé **ou** dans la
+  liste blanche — refus explicite, même si quelqu'un tentait de l'y ajouter ;
 - `app/build.gradle.kts` mentionne `okhttp`, `retrofit` ou `ktor-client`.
 
 **Nuance honnête.** Le manifest mergé contient d'autres permissions, injectées
@@ -231,10 +236,12 @@ transitivement par Glance/WorkManager : `WAKE_LOCK`,
 `ACCESS_NETWORK_STATE`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`, et
 `…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. Aucune n'autorise une sortie
 réseau (`ACCESS_NETWORK_STATE` permet seulement de *lire* l'état de
-connectivité) et aucun worker de synchronisation n'existe dans le projet. La
-garde CI ne cible que `INTERNET`, le seul verrou réellement structurant.
-→ *à confirmer* : faut-il élargir la garde à une liste blanche stricte de
-permissions ? Non tranché.
+connectivité) et aucun worker de synchronisation n'existe dans le projet. Depuis
+AND-10 la garde ne se contente plus de refuser `INTERNET` : elle exige que
+**toute** permission mergée soit explicitement listée et justifiée, de sorte
+qu'une permission nouvelle arrivant par une dépendance bloque le build au lieu
+de passer inaperçue. Le comportement de l'app est inchangé : aucune permission
+n'a été retirée.
 
 **Ce qui le casserait.** Une dépendance qui déclare `INTERNET` dans son
 manifest (la CI l'attraperait), ou un lot qui ajouterait la permission
