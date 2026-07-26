@@ -56,6 +56,19 @@ troisième formulation.
 
 ---
 
+## Règles de saisie — distinctes des invariants
+
+Ce ne sont **pas** des invariants : l'app n'analyse aucun contenu (I15), elle ne
+peut donc rien garantir ici par construction. Elles relèvent de la saisie.
+
+- **Aucune donnée nominative** : jamais le nom, le prénom, les initiales ni un
+  élément de situation d'une personne accompagnée. Une boucle la concernant est
+  nommée par l'action, pas par la personne. Contrepartie assumée de l'absence de
+  chiffrement applicatif (ADR-03). Détail :
+  [`docs/schema.md`](docs/schema.md).
+
+---
+
 ## 3. Interdits permanents
 
 Ils ne sont pas négociables au cas par cas. Si un besoin semble les exiger,

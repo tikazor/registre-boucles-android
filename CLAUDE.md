@@ -61,6 +61,14 @@ de mémoire.
 - analyser le contenu des captures dans l'app
 - trancher un ADR à la place du commanditaire
 
+## Règles de saisie
+*Distinctes des invariants : l'app n'analyse aucun contenu (I15), elle ne peut
+pas les garantir. Elles relèvent de la saisie.*
+- **Aucune donnée nominative** : jamais le nom, le prénom, les initiales ni un
+  élément de situation d'une personne accompagnée. Une boucle la concernant est
+  nommée par l'action, pas par la personne. Contrepartie de l'absence de
+  chiffrement applicatif (ADR-03). Détail : `docs/schema.md`.
+
 ## Comment travailler ici
 Un LOT = une session. Format : précontrôles, périmètre avec interdits, étapes
 ordonnées, gate, contrat de preuve.

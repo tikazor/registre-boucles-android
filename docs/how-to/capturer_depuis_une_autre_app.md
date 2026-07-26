@@ -8,6 +8,11 @@ source: app/src/main/java/com/pontat/registreboucles/capture/CaptureActivity.kt,
 
 # Capturer une note depuis une autre application
 
+> ⚠️ **Aucune donnée nominative.** Ne capture jamais le nom, le prénom, les
+> initiales ni un élément de situation d'une personne accompagnée : nomme la
+> boucle par l'action (« rapport MDPH — 12/09 »). Contrepartie assumée de
+> l'absence de chiffrement applicatif (ADR-03).
+
 ## En bref
 
 Deux gestes, deux taps, et la note est dans le registre — sans quitter ce que tu

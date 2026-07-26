@@ -12,6 +12,23 @@ de produire un JSON valide sans autre explication.
 
 ---
 
+## Règle d'usage — aucune donnée nominative
+
+Le registre consigne des engagements organisationnels : échéances, décisions,
+instances, livrables. Il ne consigne **AUCUNE** donnée à caractère personnel
+relative à une personne accompagnée — ni nom, ni prénom, ni initiales, ni date
+de naissance, ni adresse, ni élément de situation permettant une réidentification.
+
+Une boucle qui concerne une personne accompagnée est nommée par l'**ACTION**,
+jamais par la personne : « transmettre le rapport à la MDPH — échéance 12/09 »,
+et non « dossier de <prénom> ».
+
+Cette règle ne peut pas être garantie par l'application : elle n'analyse aucun
+contenu (I15). Elle relève de la saisie, et elle est la contrepartie assumée de
+l'absence de chiffrement applicatif (ADR-03).
+
+---
+
 ## 1. Structure racine
 
 ```json
