@@ -66,9 +66,16 @@ sandbox en clair.
   mais dépendance native, gestion/stockage d'une clé (Keystore Android), et
   question du chiffrement des exports partagés.
 
-**Statut : OUVERT.** Question du seuil : dès maintenant, ou au-delà d'un
-certain volume / d'un partage hors appareil ? À définir avec le commanditaire
-au regard des obligations (RGPD, secret professionnel).
+**Statut : TRANCHÉ** — 2026-07-26, par le commanditaire.
+**Option A retenue :** rester sur le chiffrement de l'OS, la protection reposant
+sur une règle de saisie plutôt que sur la technique. Le registre ne consigne
+aucune donnée nominative relative à une personne accompagnée (cf. règle d'usage
+dans `docs/schema.md`) ; le chiffrement applicatif deviendrait nécessaire si des
+données de ce type entraient réellement dans la base.
+
+**Condition de réouverture.** Si des données nominatives entrent malgré la règle,
+ou si les backups exportés sortent de l'appareil, l'ADR est rouvert et l'option B
+(SQLCipher + chiffrement des backups) réexaminée.
 
 ---
 
