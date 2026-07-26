@@ -96,5 +96,14 @@ sans chemin pour l'atteindre depuis l'app.
 - **B — Retirer `blocage`/`defaut`/`defaut_applique` du modèle.** Simplifie ;
   mais migration Room et perte d'une intention métier déjà exprimée.
 
-**Statut : OUVERT.** Décision produit : ces champs décrivent-ils un flux à
-construire, ou un vestige à retirer ?
+**Statut : TRANCHÉ** — 2026-07-26, par le commanditaire.
+**Option A retenue, exécution différée.** Le flux sera implémenté : à échéance
+dépassée sans preuve, une action applique `defaut`, écrit une entrée de journal
+de type `DEFAUT` et fait passer la boucle à `defaut_applique`. Les trois éléments
+(`blocage`, `defaut`, `defaut_applique`) ne sont donc pas des vestiges : ils
+décrivent un flux à construire. `JournalType.DEFAUT` existe déjà depuis AND-01 ;
+l'infrastructure est prête.
+
+L'implémentation est **conditionnée à l'observation**, en usage réel, de boucles
+effectivement bloquées à échéance — inutile de construire le flux avant d'avoir
+la preuve qu'il répond à un besoin concret. Renvoi au `BACKLOG.md` (réf. B-01).
