@@ -11,6 +11,35 @@ commits **par lot de travail**, pas par commit.
 
 ## [Non publié]
 
+### Fixed
+- **Type de journal validé à l'import** (lot AND-10, étape 1) : l'import stockait
+  le type d'entrée de journal brut, sans le valider, alors qu'un statut inconnu
+  est rejeté. Un type inconnu retombe désormais sur la valeur neutre
+  `DECLARATION` — jamais rejeté, pour qu'un backup ancien reste réimportable — et
+  l'écart est signalé dans le rapport d'import. Les types connus sont conservés
+  tels quels. `JournalType.depuis()`, jusque-là code mort, est désormais le point
+  de validation. 4 tests supplémentaires.
+
+### Security
+- **Garde CI durcie en liste blanche de permissions** (lot AND-10, étape 2) : la
+  garde anti-réseau n'échouait que sur `INTERNET`, laissant passer toute autre
+  permission arrivant par manifest merge d'une dépendance. Elle exige maintenant
+  que **chaque** `uses-permission` du manifest mergé figure, avec sa
+  justification, dans `.github/permissions-allowlist.txt` ; toute permission hors
+  liste bloque le build. `INTERNET` reste refusée explicitement, même si
+  quelqu'un l'ajoutait à la liste. Aucune permission retirée : le comportement de
+  l'app est inchangé. I5 mis à jour dans `docs/explanation/invariants.md` et
+  `CLAUDE.md`.
+
+### Changed
+- **`AGENTS.md` aligné sur les 16 invariants** (lot AND-10, étape 0) : le contrat
+  agent annonçait encore 8 invariants et contredisait `CLAUDE.md` sur I1, I2 et
+  I7. Le tableau I1 → I16 est reconstruit à partir de la source de vérité
+  (`docs/explanation/invariants.md`), avec la portée par canal (commande /
+  réplication / import) sur I1, I2 et I7, et la section « Interdits permanents »
+  est réalignée sur celle de `CLAUDE.md`. Deux points signalés de
+  `docs/00_INDEX.md` (types de journal, portée de la garde CI) sont soldés.
+
 ### Added
 - **Bouclage capture → proposition → boucle** (lot AND-09) : le cycle se referme,
   et la traçabilité va de la note griffonnée un mardi soir jusqu'à la boucle
