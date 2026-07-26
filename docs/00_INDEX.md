@@ -91,19 +91,14 @@ relèvent du commanditaire. Aucun lot ne doit les arbitrer seul.
 
 Relevés en écrivant cette documentation, vérifiés dans le code, **non tranchés** :
 
-1. **Type de journal non validé à l'import.** `JournalType.depuis()` n'est
-   appelé nulle part (code mort) ; l'import stocke le type brut sans le valider,
-   contrairement au statut qui est rejeté s'il est inconnu.
-   Cf. [`reference/data_model.md`](reference/data_model.md) §5.4.
-2. **Portée de la garde CI anti-réseau.** Elle ne bloque que la permission
-   `INTERNET`. D'autres permissions (`ACCESS_NETWORK_STATE`, `WAKE_LOCK`…)
-   arrivent transitivement via Glance/WorkManager sans permettre de sortie
-   réseau. Faut-il passer à une liste blanche stricte ?
-   Cf. [`explanation/invariants.md`](explanation/invariants.md) I5.
-3. **« Amender » vaut acceptation.** Enregistrer le formulaire depuis la
+1. **« Amender » vaut acceptation.** Enregistrer le formulaire depuis la
    supervision accepte la proposition ; il n'existe pas de « modifier sans
    accepter ». Cf.
    [`how-to/superviser_les_propositions_ia.md`](how-to/superviser_les_propositions_ia.md) §3.
+
+_Soldés par AND-10 : le type de journal est désormais validé à l'import (replié
+sur `DECLARATION` et signalé, étape 1) ; la garde CI anti-réseau est passée en
+liste blanche de permissions (étape 2)._
 
 ---
 
