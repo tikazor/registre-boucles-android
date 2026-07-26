@@ -2,6 +2,7 @@ package com.pontat.registreboucles.importer
 
 import com.pontat.registreboucles.data.Boucle
 import com.pontat.registreboucles.data.Journal
+import com.pontat.registreboucles.data.JournalType
 import com.pontat.registreboucles.data.Mouvement
 import com.pontat.registreboucles.data.SourceBoucle
 import com.pontat.registreboucles.data.Suppression
@@ -39,7 +40,13 @@ data class ImportResult(
     /** `exporteLe` déclaré par l'émetteur (epoch millis) ; null hors v3. Sert au
      *  garde-fou d'horloge de la synchronisation. */
     val exporteLe: Long? = null,
-    val idsNonConformes: List<String> = emptyList()
+    val idsNonConformes: List<String> = emptyList(),
+    /**
+     * Types de journal inconnus rencontrés à l'import : repliés sur la valeur
+     * neutre `DECLARATION` (jamais rejetés — un backup ancien reste réimportable),
+     * mais signalés à l'utilisateur. Vide quand tous les types sont reconnus.
+     */
+    val typesJournalInconnus: List<String> = emptyList()
 )
 
 object JsonImporter {
@@ -128,11 +135,21 @@ object JsonImporter {
         val idsNonConformes = racine.boucles.map { it.id }.filterNot { idConforme(it) }
 
         // Journaux (présents dans les fichiers de backup ; absents des exports simples).
+        // Le type est VALIDÉ : un type inconnu retombe sur la valeur neutre
+        // DECLARATION (jamais rejeté — un backup ancien doit rester réimportable)
+        // et l'écart est signalé. Cohérent avec le rejet d'un statut inconnu :
+        // ici on replie plutôt que rejeter, car un journal est une trace passée,
+        // pas un état vivant à garder décidable.
+        val typesJournalInconnus = ArrayList<String>()
         val journaux = racine.journaux.map { j ->
+            val typeNormalise = JournalType.depuis(j.type)
+            if (typeNormalise.name != j.type) {
+                typesJournalInconnus += j.type
+            }
             Journal(
                 boucleId = j.boucleId,
                 date = parseDate(j.date, "date (journal)", j.boucleId),
-                type = j.type,
+                type = typeNormalise.name,
                 texte = j.texte
             )
         }
@@ -159,7 +176,8 @@ object JsonImporter {
                 }
                 .toMap(),
             exporteLe = racine.exporteLe,
-            idsNonConformes = idsNonConformes
+            idsNonConformes = idsNonConformes,
+            typesJournalInconnus = typesJournalInconnus.distinct()
         )
     }
 

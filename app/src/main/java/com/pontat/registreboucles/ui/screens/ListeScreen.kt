@@ -568,6 +568,18 @@ fun ListeScreen(
                             color = Mnemosyne.couleurs.bientot
                         )
                     }
+                    // Types de journal inconnus : repliés sur « Déclaration »,
+                    // jamais rejetés (un backup ancien reste réimportable), signalés.
+                    if (enAttente.typesJournalInconnus.isNotEmpty()) {
+                        Text(
+                            "${enAttente.typesJournalInconnus.size} type(s) de journal inconnu(s) : " +
+                                enAttente.typesJournalInconnus.take(3).joinToString(", ") +
+                                (if (enAttente.typesJournalInconnus.size > 3) "…" else "") +
+                                ". Repliés sur « Déclaration » à l'import.",
+                            fontSize = 12.sp,
+                            color = Mnemosyne.couleurs.bientot
+                        )
+                    }
                 }
             },
             confirmButton = {
